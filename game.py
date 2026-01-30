@@ -9,7 +9,7 @@ clock = pygame.time.Clock()
 x_zero = 500
 y_zero = 500
 scale = 30
-wind_vector = np.array([0, 1.0])
+wind_vector = np.array([0, 10])
 
 heading = np.pi
 deltaheading = 0
@@ -22,11 +22,11 @@ def boat_poly(posx, posy, angle):
         pygame.math.Vector2(x, y).rotate(angle) + pos for x, y in boatpoly]
     return rotated_points
 
-boat = boat_model.Boat(mass=1.0, drag_coefficient=0.5, lift_coefficient=2.0, rudder_lift_coefficient=0.5)
+boat = boat_model.Boat(mass=3.0, drag_coefficient=1.0, lift_coefficient=45.0, rotational_drag_coefficient=2.0, rudder_lift_coefficient=2.0)
 
 def show_boat():
     pygame.draw.polygon(screen, (255,0,0), boat_poly(scale*boat.position[0]+x_zero,scale*boat.position[1]+y_zero, boat.heading_angle()*180/3.14159))
-    sail_angle = boat.sail_angle(np.array([0, 1.0])) + boat.heading_angle()
+    sail_angle = boat.sail_angle(wind_vector) + boat.heading_angle()
     sail_mast = (scale*boat.position[0]+x_zero+0.4*scale*boat.heading[0],scale*boat.position[1]+y_zero+0.4*scale*boat.heading[1])
     pygame.draw.line(screen, (255,255,255), sail_mast, (sail_mast[0] - 0.8*scale*np.cos(sail_angle), sail_mast[1] - 0.8*scale*np.sin(sail_angle)), 2)
 
@@ -50,9 +50,9 @@ while running:
     current_time = pygame.time.get_ticks()
     time_step = (current_time - last_time) / 1000.0
     last_time = current_time
-    boat.update(wind_vector, deltaheading*np.pi/4, time_step*6) #TODO: timestep unchanged, fix params
+    boat.update(wind_vector, deltaheading*np.pi/4, time_step) #TODO: timestep unchanged, fix params
 
-    #print(f"Boat position: {boat.position}, speed: {boat.speed}, heading: {boat.heading}, sail angle: {boat.sail_angle(wind_vector)}")
+    print(f"Boat position: {boat.position}, speed: {boat.speed}, heading: {boat.heading}, sail angle: {boat.sail_angle(wind_vector)}")
 
     # Draw the ball and update the display
     screen.fill((0, 105, 205))
