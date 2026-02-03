@@ -6,14 +6,14 @@ def relative_sail_efficiency(wind_vector, boat_versor):
     return efficiency
 
 class Boat:
-    def __init__(self, mass=1.0, drag_coefficient=1.0, lift_coefficient=1.0, rotational_drag_coefficient=4.0, rudder_lift_coefficient=0.1):
+    def __init__(self, mass=1.0, drag_coefficient=1.0, lift_coefficient=1.0, rotational_drag_coefficient=4.0, rudder_lift_coefficient=0.1, heading=None, position=None):
         self.mass = mass
         self.drag_coefficient = drag_coefficient
         self.lift_coefficient = lift_coefficient
         self.rotational_drag_coefficient = rotational_drag_coefficient
         self.rudder_lift_coefficient = rudder_lift_coefficient
-        self.position = np.array([0.0, 0.0])
-        self.heading = np.array([0.0, 1.0])
+        self.position = np.array([0.0, 0.0]) if position is None else position
+        self.heading = np.array([0.0, 1.0]) if heading is None else heading / np.linalg.norm(heading)
         self.rotational_velocity = 0.0
         self.speed = 0.0
 

@@ -42,8 +42,16 @@ class Buoy:
         color = (0, 255, 0) if self.passed else (255, 0, 0)
         pygame.draw.circle(screen, color, (int(scale*self.position[0]+x_zero), int(scale*self.position[1]+y_zero)), self.radius*scale)
 
+boat_params = {
+    "mass": 3.0,
+    "drag_coefficient": 1.0,
+    "lift_coefficient": 45.0,
+    "rotational_drag_coefficient": 3.0,
+    "rudder_lift_coefficient": 2.0
+}
 wind_vector = np.array([0, 10])
-boat = GameBoat(mass=3.0, drag_coefficient=1.0, lift_coefficient=45.0, rotational_drag_coefficient=3.0, rudder_lift_coefficient=2.0)
+boat = GameBoat(**boat_params)
+
 buoys = [Buoy(np.array([0,-30])), Buoy(np.array([30,0])), Buoy(np.array([0,30]))]
 current_buoy_index = 0
 
@@ -66,11 +74,14 @@ while running:
     current_time = pygame.time.get_ticks()
     time_step = (current_time - last_time) / 1000.0
     last_time = current_time
+
     boat.update(wind_vector, deltaheading*np.pi/4, time_step)
+
     if current_buoy_index < len(buoys) and buoys[current_buoy_index].check(boat.position):
         current_buoy_index += 1
         if current_buoy_index >= len(buoys):
-            print("All buoys passed! Race finished.")
+            print("All buoys passed! Race finished. Time:", current_time/1000.0, "seconds")
+            break
 
     print(f"Boat position: {boat.position}, speed: {boat.speed}, heading: {boat.heading}, sail angle: {boat.sail_angle(wind_vector)}, current buoy: {current_buoy_index}")
 
@@ -79,6 +90,12 @@ while running:
         buoy.draw(screen)
     boat.draw()
     pygame.display.flip()
+
     clock.tick(60)
+
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
 
 pygame.quit()
