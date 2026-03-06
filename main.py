@@ -37,7 +37,7 @@ boat_params = {
     "rudder_lift_coefficient": 2.0
 }
 buoys = [[0,-30],[30,0],[0,30]]
-wind_vector = np.array([0, 10])
+wind_vector = [0, 10]
 
 env = environment.RegattaEnv(boat_params, buoys, wind_vector)
 curr_score = 0

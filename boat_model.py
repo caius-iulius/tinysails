@@ -71,7 +71,7 @@ class Boat:
         return np.arctan2(self.heading[1], self.heading[0])
 
     def state(self):
-        return np.array([self.position[0], self.position[1], self.heading_angle(), self.speed])
+        return self.position, self.heading, self.speed, self.rotational_velocity
 
     def reset(self):
         self.position = np.array([0.0, 0.0]) if self.reset_position is None else self.reset_position
