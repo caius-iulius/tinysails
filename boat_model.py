@@ -12,6 +12,8 @@ class Boat:
         self.lift_coefficient = lift_coefficient
         self.rotational_drag_coefficient = rotational_drag_coefficient
         self.rudder_lift_coefficient = rudder_lift_coefficient
+        self.reset_position = position
+        self.reset_heading = heading
         self.position = np.array([0.0, 0.0]) if position is None else position
         self.heading = np.array([0.0, 1.0]) if heading is None else heading / np.linalg.norm(heading)
         self.rotational_velocity = 0.0
@@ -35,7 +37,6 @@ class Boat:
         rot_acc = -0.5*self.rudder_lift_coefficient*self.rudder_dist*np.sin(2*rudder_angle)*self.speed / self.rot_inertia
         drag = self.rudder_lift_coefficient * (np.sin(rudder_angle)**2) * self.speed
 
-        # Placeholder for rudder effect calculation
         return rot_acc, drag
 
     def sail_angle(self, wind_vector):
@@ -68,3 +69,12 @@ class Boat:
 
     def heading_angle(self):
         return np.arctan2(self.heading[1], self.heading[0])
+
+    def state(self):
+        return np.array([self.position[0], self.position[1], self.heading_angle(), self.speed])
+
+    def reset(self):
+        self.position = np.array([0.0, 0.0]) if self.reset_position is None else self.reset_position
+        self.heading = np.array([0.0, 1.0]) if self.reset_heading is None else self.reset_heading / np.linalg.norm(self.reset_heading)
+        self.rotational_velocity = 0.0
+        self.speed = 0.0
