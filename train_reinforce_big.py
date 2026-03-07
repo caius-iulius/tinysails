@@ -5,6 +5,7 @@ import torch.optim as optim
 from torch.distributions import Categorical
 import game_abstraction
 import pygame
+import numpy as np
 
 def normalize_state(state):
     # Scale distance, angles, and speed to roughly [-1, 1]
@@ -42,6 +43,23 @@ boat_params = {
 buoys = [[-30,0],[0,-30],[0,30],[30,0],]
 wind_vector = [0, 10]
 
+def score_boat_tick(env, time, dt):
+    score = 0
+    if env.current_buoy_index >= len(buoys):
+        return 0
+    next_buoy = env.buoys[env.current_buoy_index]
+    to_buoy = next_buoy.position - env.boat.position
+    distance = np.linalg.norm(to_buoy)
+
+    relative_velocity = np.dot(env.boat.heading * env.boat.speed, to_buoy / distance)
+    score += relative_velocity
+
+    score *= dt
+    if distance < next_buoy.radius:
+        score += 5000/(time - env.last_buoy_time) # bonus for passing buoy
+
+    return score
+
 env = RegattaEnv(boat_params, buoys, wind_vector)
 policy = ReinforcePolicy()
 optimizer = optim.Adam(policy.parameters(), lr=0.0003)
@@ -69,7 +87,8 @@ for episode in range(num_episodes):
 
         # Step the environment
         # print(f"Episode {episode + 1:3d} | Tick {tick_count:4d} | Action taken: {action.item()-1}")
-        next_state, reward, done = env.step(action.item()-1, tick_count*0.1, 0.1)
+        next_state, done = env.step(action.item()-1, tick_count*0.1, 0.1)
+        reward = score_boat_tick(env, tick_count*0.1, 0.1)
 
         log_probs.append(m.log_prob(action))
         rewards.append(reward)
@@ -101,6 +120,8 @@ for episode in range(num_episodes):
     # if (episode + 1) % 5 == 0:
     total_reward = sum(rewards)
     print(f"Episode {episode + 1:3d} | Total Reward: {total_reward:7.2f} | Ticks simulated: {tick_count:3d} | Buoys passed: {env.current_buoy_index}")
+
+input("Training complete. Press Enter to run inference...")
 
 def inference(state):
     running = True

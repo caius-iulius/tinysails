@@ -18,31 +18,6 @@ class Buoy:
     def reset(self):
         self.passed = False
 
-def score_boat_tick(boat, buoys, current_buoy_idx, last_buoy_time, action, time, dt):
-    # score proportional to relative velocity towards the next buoy, with a bonus for passing it. small score to absolute speed to encourage movement
-    # score = 1 -2*abs(action)
-    score = 0
-    if current_buoy_idx >= len(buoys):
-        return 0, False
-    next_buoy = buoys[current_buoy_idx]
-    to_buoy = next_buoy.position - boat.position
-    distance = np.linalg.norm(to_buoy)
-
-    relative_velocity = np.dot(boat.heading * boat.speed, to_buoy / distance)
-    score += relative_velocity
-    # score += boat.speed * 0.01 # encourage movement
-
-    score *= dt # scale score by time step
-    if distance < next_buoy.radius:
-        score += 5000/(time - last_buoy_time) # bonus for passing buoy
-
-    out_of_bounds = False
-    # if abs(boat.position[0]) > 50 or abs(boat.position[1]) > 50:
-    #     score -= 10
-    #     out_of_bounds = True
-
-    return score, out_of_bounds
-
 class RegattaEnv:
     def __init__(self, boat_params, buoy_positions, wind_vector):
         self.boat = Boat(**boat_params)
@@ -70,13 +45,11 @@ class RegattaEnv:
     def step(self, action, time, dt):
         self.boat.update(self.wind_vector, action*np.pi/4, dt)
 
-        reward, oob = score_boat_tick(self.boat, self.buoys, self.current_buoy_index, self.last_buoy_time, action, time, dt)
-
         if self.current_buoy_index < len(self.buoys) and self.buoys[self.current_buoy_index].check(self.boat.position):
             self.last_buoy_time = time
             self.current_buoy_index += 1
 
-        done =  self.current_buoy_index >= len(self.buoys) or oob
+        done =  self.current_buoy_index >= len(self.buoys)
 
         next_buoy_pos = self.buoys[self.current_buoy_index].position - self.boat.position if self.current_buoy_index < len(self.buoys) else np.array([0.0, 0.0])
         next_buoy_distance = np.linalg.norm(next_buoy_pos)
@@ -87,4 +60,4 @@ class RegattaEnv:
 
         state = np.array([next_buoy_distance, next_buoy_relative_angle, relative_wind_angle, self.boat.speed, self.boat.rotational_velocity])
 
-        return state, reward, done
+        return state, done

@@ -33,7 +33,6 @@ def run_game(env, get_command):
     running = True
     last_time = pygame.time.get_ticks()
     state = env.reset()
-    curr_score = 0
     while running:
         current_time = pygame.time.get_ticks()
         time_step = (current_time - last_time) / 1000.0
@@ -45,9 +44,7 @@ def run_game(env, get_command):
             break
         print(f"action taken: {action}")
 
-        state, reward, done = env.step(action, last_time, time_step)
-        curr_score += reward
-
+        state, done = env.step(action, last_time, time_step)
 
         game_surf.fill((0, 105, 205))
         for buoy in env.buoys:
@@ -59,8 +56,6 @@ def run_game(env, get_command):
 
         if done:
             state = env.reset()
-            curr_score = 0
-
         clock.tick(60)
 
     pygame.quit()
