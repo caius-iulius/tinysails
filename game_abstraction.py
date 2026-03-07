@@ -42,7 +42,7 @@ def run_game(env, get_command):
         action, running = get_command(state)
         if not running:
             break
-        print(f"action taken: {action}")
+        print(f"action taken: {action} state: {state}")
 
         state, done = env.step(action, last_time, time_step)
 

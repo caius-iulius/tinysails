@@ -10,18 +10,20 @@ import numpy as np
 def normalize_state(state):
     # Scale distance, angles, and speed to roughly [-1, 1]
     return [
-        state[0] / 50.0,        # Max expected distance
-        state[1] / 3.14159,     # Radians
-        state[2] / 3.14159,     # Radians
-        state[3] / 10.0,         # Max expected speed
-        state[4] # rotational velocity
+        state[0] / 50.0, # next buoy dist
+        state[1], # next buoy sin
+        state[2], # next buoy cos
+        state[3], # wind sin
+        state[4], # wind cos
+        state[5] / 10.0, # boat speed
+        state[6] # rotational velocity
     ]
 
 class ActorCriticNetwork(nn.Module):
     def __init__(self):
         super(ActorCriticNetwork, self).__init__()
         # Shared feature extractor
-        self.fc1 = nn.Linear(5, 16)
+        self.fc1 = nn.Linear(7, 16)
         self.fc2 = nn.Linear(16, 16)
         self.fc3 = nn.Linear(16, 16)
 
