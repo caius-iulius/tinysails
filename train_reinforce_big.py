@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Categorical
 import game_abstraction
+import pygame
 
 def normalize_state(state):
     # Scale distance, angles, and speed to roughly [-1, 1]
@@ -11,20 +12,23 @@ def normalize_state(state):
         state[0] / 50.0,        # Max expected distance
         state[1] / 3.14159,     # Radians
         state[2] / 3.14159,     # Radians
-        state[3] / 10.0         # Max expected speed
+        state[3] / 10.0,         # Max expected speed
+        state[4] # rotational velocity
     ]
 
 class ReinforcePolicy(nn.Module):
     def __init__(self):
         super(ReinforcePolicy, self).__init__()
-        self.fc1 = nn.Linear(4, 8)
-        self.fc2 = nn.Linear(8, 8)
-        self.fc3 = nn.Linear(8, 3)
+        self.fc1 = nn.Linear(5, 16)
+        self.fc2 = nn.Linear(16, 16)
+        self.fc3 = nn.Linear(16, 16)
+        self.fc4 = nn.Linear(16, 3)
 
     def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-        x = self.fc3(x)
+        x = torch.tanh(self.fc1(x))
+        x = torch.tanh(self.fc2(x))
+        x = torch.tanh(self.fc3(x))
+        x = self.fc4(x)
         return torch.softmax(x, dim=-1)
 
 boat_params = {
@@ -40,10 +44,10 @@ wind_vector = [0, 10]
 
 env = RegattaEnv(boat_params, buoys, wind_vector)
 policy = ReinforcePolicy()
-optimizer = optim.Adam(policy.parameters(), lr=0.002)
+optimizer = optim.Adam(policy.parameters(), lr=0.0003)
 
 gamma = 0.99
-num_episodes = 1000
+num_episodes = 8000
 
 for episode in range(num_episodes):
     state = env.reset()
@@ -99,10 +103,15 @@ for episode in range(num_episodes):
     print(f"Episode {episode + 1:3d} | Total Reward: {total_reward:7.2f} | Ticks simulated: {tick_count:3d} | Buoys passed: {env.current_buoy_index}")
 
 def inference(state):
+    running = True
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
     state_tensor = torch.tensor(normalize_state(state), dtype=torch.float32)
     action_probs = policy(state_tensor)
     action = torch.argmax(action_probs)
     env_action = action.item()-1
-    return env_action, True
+    return env_action, running
 
 game_abstraction.run_game(env, inference)

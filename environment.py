@@ -65,7 +65,7 @@ class RegattaEnv:
         relative_wind_angle = np.arctan2(self.wind_vector[1], self.wind_vector[0]) - np.arctan2(-self.boat.heading[1], -self.boat.heading[0])
         relative_wind_angle = (relative_wind_angle + np.pi) % (2 * np.pi) - np.pi
 
-        return np.array([next_buoy_distance, next_buoy_relative_angle, relative_wind_angle, self.boat.speed])
+        return np.array([next_buoy_distance, next_buoy_relative_angle, relative_wind_angle, self.boat.speed, self.boat.rotational_velocity])
 
     def step(self, action, time, dt):
         self.boat.update(self.wind_vector, action*np.pi/4, dt)
@@ -85,6 +85,6 @@ class RegattaEnv:
         relative_wind_angle = np.arctan2(self.wind_vector[1], self.wind_vector[0]) - np.arctan2(-self.boat.heading[1], -self.boat.heading[0])
         relative_wind_angle = (relative_wind_angle + np.pi) % (2 * np.pi) - np.pi
 
-        state = np.array([next_buoy_distance, next_buoy_relative_angle, relative_wind_angle, self.boat.speed])
+        state = np.array([next_buoy_distance, next_buoy_relative_angle, relative_wind_angle, self.boat.speed, self.boat.rotational_velocity])
 
         return state, reward, done

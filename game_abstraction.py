@@ -39,7 +39,7 @@ def run_game(env, get_command):
         time_step = (current_time - last_time) / 1000.0
         last_time = current_time
 
-        print(f"Boat state: {state}, score: {curr_score:.2f}")
+        # print(f"Boat state: {state}, score: {curr_score:.2f}")
         action, running = get_command(state)
         if not running:
             break
