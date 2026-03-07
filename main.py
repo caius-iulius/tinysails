@@ -9,7 +9,7 @@ boat_params = {
     "rotational_drag_coefficient": 3.0,
     "rudder_lift_coefficient": 2.0
 }
-buoys = [[0,-30],[30,0],[0,30]]
+buoys = [[-30,0],[0,-30],[0,25],[30,0],[0,0],[0,30],[0,-25]]
 wind_vector = [0, 10]
 
 env = environment.RegattaEnv(boat_params, buoys, wind_vector)

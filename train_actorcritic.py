@@ -23,12 +23,12 @@ class ActorCriticNetwork(nn.Module):
     def __init__(self):
         super(ActorCriticNetwork, self).__init__()
         # Shared feature extractor
-        self.fc1 = nn.Linear(7, 16)
-        self.fc2 = nn.Linear(16, 16)
-        self.fc3 = nn.Linear(16, 16)
+        self.fc1 = nn.Linear(7, 32)
+        self.fc2 = nn.Linear(32, 32)
+        self.fc3 = nn.Linear(32, 32)
 
-        self.actor_head = nn.Linear(16, 3)
-        self.critic_head = nn.Linear(16, 1)
+        self.actor_head = nn.Linear(32, 3)
+        self.critic_head = nn.Linear(32, 1)
 
     def forward(self, x):
         x = torch.tanh(self.fc1(x))
@@ -52,12 +52,13 @@ boat_params = {
     "rudder_lift_coefficient": 2.0,
     "heading": [1, 0]
 }
-buoys = [[-30,0],[0,-30],[0,30],[30,0],]
+buoys = [[-30,0],[0,-30],[0,25],[30,0],[0,0],[0,30],[0,-25]]
 wind_vector = [0, 10]
 
 
 def score_boat_tick(env, time, dt):
     score = 0.1*(env.current_buoy_index - len(env.buoys) + 1)
+    #score = -0.5*(1 - env.current_buoy_index/len(env.buoys))
     if env.current_buoy_index >= len(env.buoys):
         return 0
     next_buoy = env.buoys[env.current_buoy_index]
@@ -77,16 +78,27 @@ env = RegattaEnv(boat_params, buoys, wind_vector)
 model = ActorCriticNetwork()
 optimizer = optim.Adam(model.parameters(), lr=0.0005)
 
+# Cosine annealing decays the LR smoothly from its initial value down to
+# eta_min over num_episodes steps, avoiding a permanently tiny LR too early.
 gamma = 0.99
 num_episodes = 100
+lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
+    optimizer, T_max=num_episodes, eta_min=5e-5
+)
 
+# Entropy coefficient: start high (explore freely) and decay linearly to a
+# small floor so the agent exploits what it has learned in later episodes.
+entropy_coef_start = 0.10
+entropy_coef_end   = 0.005
+
+best_ticks = 1500
 for episode in range(num_episodes):
     state = env.reset()
     done = False
     tick_count = 0
     total_reward = 0
 
-    while not done and tick_count < 1000:
+    while not done and tick_count < 1500:
         # 1. Evaluate current state
         state_tensor = torch.tensor(normalize_state(state), dtype=torch.float32)
         action_probs, state_value = model(state_tensor)
@@ -109,13 +121,12 @@ for episode in range(num_episodes):
         td_target = reward + gamma * next_state_value * (1 - int(done))
         advantage = td_target - state_value
 
-        # --- THE FIX: Calculate Entropy ---
-        # m is your Categorical(action_probs) distribution
+        # Calculate entropy bonus to encourage exploration.
         entropy = m.entropy()
 
-        # This coefficient controls how aggressively we force exploration.
-        # 0.05 is a good starting point for continuous/semi-continuous control.
-        entropy_coef = 0.05
+        # Linear decay: interpolate between start and end based on episode progress.
+        progress = episode / max(num_episodes - 1, 1)  # 0.0 → 1.0
+        entropy_coef = entropy_coef_start + (entropy_coef_end - entropy_coef_start) * progress
 
         # 6. Calculate Losses
         # We SUBTRACT the entropy bonus to lower the loss when the agent explores
@@ -134,9 +145,22 @@ for episode in range(num_episodes):
         state = next_state
         tick_count += 1
 
-    print(f"Episode {episode + 1:3d} | Total Reward: {total_reward:7.2f} | Ticks: {tick_count:3d} | Buoys: {env.current_buoy_index}")
+    # Step both schedulers once per episode.
+    lr_scheduler.step()
+
+    current_lr = optimizer.param_groups[0]['lr']
+    progress    = episode / max(num_episodes - 1, 1)
+    entropy_coef_display = entropy_coef_start + (entropy_coef_end - entropy_coef_start) * progress
+    print(f"Episode {episode + 1:3d} | Total Reward: {total_reward:7.2f} | Ticks: {tick_count:3d} | Buoys: {env.current_buoy_index} | LR: {current_lr:.6f} | Ent: {entropy_coef_display:.4f}")
+    if tick_count < best_ticks:
+        best_ticks = tick_count
+        print(f"New best time: {best_ticks} ticks")
+        torch.save(model.state_dict(), "./models/actorcritic_model.pth")
 
 input("Training complete. Press Enter to run inference...")
+
+model2 = ActorCriticNetwork()
+model2.load_state_dict(torch.load("./models/actorcritic_model.pth"))
 
 def inference(state):
     running = True
@@ -146,7 +170,7 @@ def inference(state):
 
     state_tensor = torch.tensor(normalize_state(state), dtype=torch.float32)
 
-    action_probs, _ = model(state_tensor)
+    action_probs, _ = model2(state_tensor)
 
     action = torch.argmax(action_probs)
     env_action = action.item() - 1
