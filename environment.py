@@ -18,9 +18,10 @@ class Buoy:
     def reset(self):
         self.passed = False
 
-def score_boat_tick(boat, buoys, current_buoy_idx, dt):
+def score_boat_tick(boat, buoys, current_buoy_idx, last_buoy_time, action, time, dt):
     # score proportional to relative velocity towards the next buoy, with a bonus for passing it. small score to absolute speed to encourage movement
-    score = -1 # small negative score to encourage faster completion
+    # score = 1 -2*abs(action)
+    score = 0
     if current_buoy_idx >= len(buoys):
         return 0, False
     next_buoy = buoys[current_buoy_idx]
@@ -28,12 +29,12 @@ def score_boat_tick(boat, buoys, current_buoy_idx, dt):
     distance = np.linalg.norm(to_buoy)
 
     relative_velocity = np.dot(boat.heading * boat.speed, to_buoy / distance)
-    score += 100*relative_velocity / (distance + 1) # avoid division by zero
+    score += relative_velocity
     # score += boat.speed * 0.01 # encourage movement
 
     score *= dt # scale score by time step
     if distance < next_buoy.radius:
-        score += 50 # bonus for passing buoy
+        score += 5000/(time - last_buoy_time) # bonus for passing buoy
 
     out_of_bounds = False
     # if abs(boat.position[0]) > 50 or abs(boat.position[1]) > 50:
@@ -47,6 +48,7 @@ class RegattaEnv:
         self.boat = Boat(**boat_params)
         self.buoys = [Buoy(np.array(pos)) for pos in buoy_positions]
         self.current_buoy_index = 0
+        self.last_buoy_time = 0
         self.wind_vector = np.array(wind_vector)
 
     def reset(self):
@@ -54,6 +56,7 @@ class RegattaEnv:
         for buoy in self.buoys:
             buoy.reset()
         self.current_buoy_index = 0
+        self.last_buoy_time = 0
 
         next_buoy_pos = self.buoys[0].position - self.boat.position
         next_buoy_distance = np.linalg.norm(next_buoy_pos)
@@ -64,12 +67,13 @@ class RegattaEnv:
 
         return np.array([next_buoy_distance, next_buoy_relative_angle, relative_wind_angle, self.boat.speed])
 
-    def step(self, action, dt):
+    def step(self, action, time, dt):
         self.boat.update(self.wind_vector, action*np.pi/4, dt)
 
-        reward, oob = score_boat_tick(self.boat, self.buoys, self.current_buoy_index, dt)
+        reward, oob = score_boat_tick(self.boat, self.buoys, self.current_buoy_index, self.last_buoy_time, action, time, dt)
 
         if self.current_buoy_index < len(self.buoys) and self.buoys[self.current_buoy_index].check(self.boat.position):
+            self.last_buoy_time = time
             self.current_buoy_index += 1
 
         done =  self.current_buoy_index >= len(self.buoys) or oob

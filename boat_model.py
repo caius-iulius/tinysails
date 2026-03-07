@@ -35,9 +35,10 @@ class Boat:
 
     def calc_rudder_effect(self, rudder_angle):
         rot_acc = -0.5*self.rudder_lift_coefficient*self.rudder_dist*np.sin(2*rudder_angle)*self.speed / self.rot_inertia
+        rot_drag = -0.5*self.rotational_drag_coefficient * (np.sign(self.rotational_velocity)*self.rotational_velocity**2)
         drag = self.rudder_lift_coefficient * (np.sin(rudder_angle)**2) * self.speed
 
-        return rot_acc, drag
+        return rot_acc+rot_drag, drag
 
     def sail_angle(self, wind_vector):
         relative_wind = wind_vector - self.heading * self.speed
