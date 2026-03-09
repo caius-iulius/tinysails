@@ -35,11 +35,8 @@ class ActorCriticNetwork(nn.Module):
         x = torch.tanh(self.fc2(x))
         x = torch.tanh(self.fc3(x))
 
-        # Get action probabilities
         action_logits = self.actor_head(x)
         action_probs = torch.softmax(action_logits, dim=-1)
-
-        # Get state value
         state_value = self.critic_head(x)
 
         return action_probs, state_value
@@ -78,16 +75,12 @@ env = RegattaEnv(boat_params, buoys, wind_vector)
 model = ActorCriticNetwork()
 optimizer = optim.Adam(model.parameters(), lr=0.0005)
 
-# Cosine annealing decays the LR smoothly from its initial value down to
-# eta_min over num_episodes steps, avoiding a permanently tiny LR too early.
 gamma = 0.99
 num_episodes = 100
 lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
     optimizer, T_max=num_episodes, eta_min=5e-5
 )
 
-# Entropy coefficient: start high (explore freely) and decay linearly to a
-# small floor so the agent exploits what it has learned in later episodes.
 entropy_coef_start = 0.10
 entropy_coef_end   = 0.005
 
@@ -123,19 +116,14 @@ for episode in range(num_episodes):
 
         # Calculate entropy bonus to encourage exploration.
         entropy = m.entropy()
-
-        # Linear decay: interpolate between start and end based on episode progress.
-        progress = episode / max(num_episodes - 1, 1)  # 0.0 → 1.0
+        progress = episode / max(num_episodes - 1, 1)
         entropy_coef = entropy_coef_start + (entropy_coef_end - entropy_coef_start) * progress
 
         # 6. Calculate Losses
-        # We SUBTRACT the entropy bonus to lower the loss when the agent explores
         actor_loss = -m.log_prob(action) * advantage.detach() - (entropy_coef * entropy)
-
-        # Critic loss remains the same
         critic_loss = nn.functional.mse_loss(state_value, td_target.detach())
 
-        loss = actor_loss + critic_loss
+        loss = actor_loss + critic_loss # todo: scale critic down?
 
         # 7. Update network immediately
         optimizer.zero_grad()
