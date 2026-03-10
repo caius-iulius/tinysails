@@ -6,6 +6,7 @@ from torch.distributions import Categorical
 import game_abstraction
 import pygame
 import numpy as np
+import time
 
 def normalize_state(state):
     # Scale distance, angles, and speed to roughly [-1, 1]
@@ -76,7 +77,7 @@ model = ActorCriticNetwork()
 optimizer = optim.Adam(model.parameters(), lr=0.003)
 
 gamma = 0.99
-num_episodes = 250
+num_episodes = 1000
 lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
     optimizer, T_max=num_episodes, eta_min=1e-5
 )
@@ -87,6 +88,7 @@ entropy_coef_end   = 0.000
 best_ticks = 1500
 batch_size = 32
 
+training_time = time.time()
 for episode in range(num_episodes):
     state = env.reset()
     done = False
@@ -160,7 +162,7 @@ for episode in range(num_episodes):
         entropy_loss = entropies_tensor.mean()
 
         # Added the 0.5 value loss coefficient to balance the gradients
-        loss = actor_loss + critic_loss - (entropy_coef * entropy_loss)
+        loss = actor_loss + 0.5*critic_loss - (entropy_coef * entropy_loss)
 
         # 8. Update network
         optimizer.zero_grad()
@@ -181,7 +183,8 @@ for episode in range(num_episodes):
         print(f"*** New best time: {best_ticks} ticks! Saving model. ***")
         torch.save(model.state_dict(), "./models/actorcritic_model.pth")
 
-input("Training complete. Press Enter to run inference...")
+training_time = time.time() - training_time
+input(f"Training completed in {training_time} seconds. Press Enter to run inference...")
 
 model2 = ActorCriticNetwork()
 model2.load_state_dict(torch.load("./models/actorcritic_model.pth"))

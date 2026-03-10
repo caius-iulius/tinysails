@@ -1,11 +1,21 @@
 from boat_model import Boat
 import numpy as np
+from random import randrange
+
+def gen_random_buoys(n_buoys):
+    buoys = []
+    while len(buoys) < n_buoys:
+        new_buoy = (randrange(-30, 30), randrange(-30, 30))
+        if len(buoys) == 0 or (buoys[-1][0]-new_buoy[0])**2 + (buoys[-1][1]-new_buoy[1])**2 > 1000:
+            buoys.append(new_buoy)
+    return buoys
 
 class Buoy:
-    def __init__(self, position):
+    def __init__(self, position, label=None):
         self.position = position
         self.radius = 1
         self.passed = False
+        self.label = label
 
     def check(self, boat_position):
         if not self.passed:
@@ -21,7 +31,7 @@ class Buoy:
 class RegattaEnv:
     def __init__(self, boat_params, buoy_positions, wind_vector):
         self.boat = Boat(**boat_params)
-        self.buoys = [Buoy(np.array(pos)) for pos in buoy_positions]
+        self.buoys = [Buoy(np.array(pos), str(idx+1)) for idx,pos in enumerate(buoy_positions)]
         self.current_buoy_index = 0
         self.last_buoy_time = 0
         self.wind_vector = np.array(wind_vector)

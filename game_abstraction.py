@@ -21,7 +21,9 @@ def draw_boat(boat, wind_vector, surf):
 def draw_buoy(buoy, surf):
     color = (0, 255, 0) if buoy.passed else (255, 0, 0)
     pygame.draw.circle(surf, color, (int(scale*buoy.position[0]+x_zero), int(scale*buoy.position[1]+y_zero)), buoy.radius*scale)
-
+    font = pygame.font.SysFont(None, 24)
+    img = font.render(buoy.label, True, (255, 255, 255))
+    surf.blit(img, (int(scale*buoy.position[0]+x_zero) - scale*2, int(scale*buoy.position[1]+y_zero) - scale*2))
 
 def run_game(env, get_command):
     pygame.init()
