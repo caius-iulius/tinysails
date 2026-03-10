@@ -36,6 +36,14 @@ class RegattaEnv:
         self.last_buoy_time = 0
         self.wind_vector = np.array(wind_vector)
 
+    def set_buoys(self, buoy_positions):
+        self.buoys = [Buoy(np.array(pos), str(idx+1)) for idx,pos in enumerate(buoy_positions)]
+        self.current_buoy_index = 0
+        self.last_buoy_time = 0
+
+    def random_buoys(self, n_buoys):
+        self.set_buoys(gen_random_buoys(n_buoys))
+
     def state(self):
         next_buoy_pos = self.buoys[self.current_buoy_index].position - self.boat.position if self.current_buoy_index < len(self.buoys) else np.array([0.0, 0.0])
         next_buoy_dist = np.linalg.norm(next_buoy_pos)

@@ -1,4 +1,4 @@
-from environment import RegattaEnv, gen_random_buoys
+from environment import RegattaEnv
 import torch
 import torch.nn as nn
 import game_abstraction
@@ -52,8 +52,9 @@ boat_params = {
 
 wind_vector = [0, 10]
 
-buoys = gen_random_buoys(7)
-env = RegattaEnv(boat_params, buoys, wind_vector)
+env = RegattaEnv(boat_params, [[-30,0],[0,-30],[0,25],[30,0],[0,0],[0,30],[0,-25]], wind_vector)
+# env.random_buoys(7)
+
 model = ActorCriticNetwork()
 model.load_state_dict(torch.load("./models/actorcritic_model.pth"))
 
