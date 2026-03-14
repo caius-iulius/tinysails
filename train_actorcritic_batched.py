@@ -7,6 +7,7 @@ import game_abstraction
 import pygame
 import numpy as np
 import time
+import csv
 
 def normalize_state(state):
     # Scale distance, angles, and speed to roughly [-1, 1]
@@ -71,6 +72,8 @@ def score_boat_tick(env, time, dt):
         score += 50
 
     return score
+
+logs = []
 
 env = RegattaEnv(boat_params, buoys, wind_vector)
 model = ActorCriticNetwork()
@@ -174,7 +177,15 @@ for episode in range(num_episodes):
     lr_scheduler.step()
     current_lr = optimizer.param_groups[0]['lr']
 
-    print(f"Episode {episode + 1:3d} | Total Reward: {total_reward:7.2f} | Ticks: {tick_count:3d} | Buoys: {env.current_buoy_index} | LR: {current_lr:.6f} | Ent: {entropy_coef_start + (entropy_coef_end - entropy_coef_start) * progress:.4f}")
+    print(f"Episode {episode + 1:3d} | Total Reward: {total_reward:7.2f} | Ticks: {tick_count:3d} | Buoys: {env.current_buoy_index} | LR: {current_lr:.6f} | Ent: {entropy_coef:.4f}")
+    logs.append({
+        "episode": episode + 1,
+        "total_reward": total_reward,
+        "ticks": tick_count,
+        "buoys_passed": env.current_buoy_index,
+        "learning_rate": current_lr,
+        "entropy_coef": entropy_coef
+    })
 
     # Save best model explicitly on success
     is_success = env.current_buoy_index >= len(env.buoys)
@@ -184,6 +195,12 @@ for episode in range(num_episodes):
         torch.save(model.state_dict(), "./models/actorcritic_model.pth")
 
 training_time = time.time() - training_time
+
+with open("./logs/actorcritic_batched.csv", "w") as f:
+    writer = csv.DictWriter(f, fieldnames=logs[0].keys())
+    writer.writeheader()
+    writer.writerows(logs)
+
 input(f"Training completed in {training_time} seconds. Press Enter to run inference...")
 
 model2 = ActorCriticNetwork()

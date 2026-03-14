@@ -1,4 +1,4 @@
-from environment import RegattaEnv, gen_random_buoys
+from environment import RegattaEnv
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -7,6 +7,7 @@ import game_abstraction
 import pygame
 import numpy as np
 import time
+import csv
 
 def normalize_state(state):
     # Scale distance, angles, and speed to roughly [-1, 1]
@@ -73,8 +74,31 @@ def score_boat_tick(env, time, dt):
 model = ActorCriticNetwork()
 optimizer = optim.Adam(model.parameters(), lr=0.003)
 
+std_env = RegattaEnv(boat_params, [[-30,0],[0,-30],[0,25],[30,0],[0,0],[0,30],[0,-25]], wind_vector)
+def score_standardized():
+    state = std_env.reset()
+    done = False
+    tick_count = 0
+    total_reward = 0
+
+    while not done and tick_count < 1500:
+        state_tensor = torch.tensor(normalize_state(state), dtype=torch.float32)
+        action_probs, _ = model(state_tensor)
+        action = torch.argmax(action_probs)
+        next_state, done = std_env.step(action.item() - 1, tick_count * 0.1, 0.1)
+
+        reward = score_boat_tick(std_env, tick_count * 0.1, 0.1)
+        total_reward += reward
+
+        state = next_state
+        tick_count += 1
+
+    return float(total_reward), tick_count, std_env.current_buoy_index
+
+logs = []
+
 gamma = 0.99
-num_episodes = 1000
+num_episodes = 2000
 lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
     optimizer, T_max=num_episodes, eta_min=1e-5
 )
@@ -172,10 +196,32 @@ for episode in range(num_episodes):
     lr_scheduler.step()
     current_lr = optimizer.param_groups[0]['lr']
 
-    print(f"Episode {episode + 1:3d} | Total Reward: {total_reward:7.2f} | Ticks: {tick_count:3d} | Buoys: {env.current_buoy_index} | LR: {current_lr:.6f} | Ent: {entropy_coef_start + (entropy_coef_end - entropy_coef_start) * progress:.4f}")
+    # Standardized scoring
+    std_reward, std_ticks, std_buoys = score_standardized()
+
+    print(f"Episode {episode + 1:3d} | Total Reward: {total_reward:7.2f} ({std_reward:7.2f}) | Ticks: {tick_count:4d} ({std_ticks:4d}) | Buoys: {env.current_buoy_index} ({std_buoys}) | LR: {current_lr:.6f} | Ent: {entropy_coef_start + (entropy_coef_end - entropy_coef_start) * progress:.4f}")
+
+    logs.append({
+        "episode": episode + 1,
+        "total_reward": total_reward,
+        "ticks": tick_count,
+        "buoys_passed": env.current_buoy_index,
+        "std_total_reward": std_reward,
+        "std_ticks": std_ticks,
+        "std_buoys_passed": std_buoys,
+        "learning_rate": current_lr,
+        "entropy_coef": entropy_coef
+    })
 
 training_time = time.time() - training_time
 torch.save(model.state_dict(), "./models/actorcritic_model.pth")
+with open("./logs/actorcritic_randomized.csv", "w") as csvfile:
+    fieldnames = logs[0].keys()
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    writer.writeheader()
+    for log in logs:
+        writer.writerow(log)
+
 input(f"Training completed in {training_time} seconds. Press Enter to run inference...")
 
 def inference(state):

@@ -6,6 +6,7 @@ from torch.distributions import Categorical
 import game_abstraction
 import pygame
 import numpy as np
+import csv
 
 def normalize_state(state):
     # Scale distance, angles, and speed to roughly [-1, 1]
@@ -61,6 +62,8 @@ def score_boat_tick(env, time, dt):
         score += 5000/(time - env.last_buoy_time) # bonus for passing buoy
 
     return score
+
+logs = []
 
 env = RegattaEnv(boat_params, buoys, wind_vector)
 policy = ReinforcePolicy()
@@ -122,6 +125,19 @@ for episode in range(num_episodes):
     # if (episode + 1) % 5 == 0:
     total_reward = sum(rewards)
     print(f"Episode {episode + 1:3d} | Total Reward: {total_reward:7.2f} | Ticks simulated: {tick_count:3d} | Buoys passed: {env.current_buoy_index}")
+    logs.append({
+        "episode": episode + 1,
+        "total_reward": total_reward,
+        "ticks": tick_count,
+        "buoys_passed": env.current_buoy_index
+    })
+
+with open('logs/reinforce_big.csv', 'w', newline='') as csvfile:
+    fieldnames = ['episode', 'total_reward', 'ticks', 'buoys_passed']
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    writer.writeheader()
+    for log in logs:
+        writer.writerow(log)
 
 input("Training complete. Press Enter to run inference...")
 

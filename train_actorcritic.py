@@ -6,6 +6,7 @@ from torch.distributions import Categorical
 import game_abstraction
 import pygame
 import numpy as np
+import csv
 
 def normalize_state(state):
     # Scale distance, angles, and speed to roughly [-1, 1]
@@ -71,12 +72,14 @@ def score_boat_tick(env, time, dt):
 
     return score
 
+logs = []
+
 env = RegattaEnv(boat_params, buoys, wind_vector)
 model = ActorCriticNetwork()
 optimizer = optim.Adam(model.parameters(), lr=0.0005)
 
 gamma = 0.99
-num_episodes = 100
+num_episodes = 1000
 lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
     optimizer, T_max=num_episodes, eta_min=5e-5
 )
@@ -144,6 +147,20 @@ for episode in range(num_episodes):
         best_ticks = tick_count
         print(f"New best time: {best_ticks} ticks")
         torch.save(model.state_dict(), "./models/actorcritic_model.pth")
+
+    logs.append({
+        "episode": episode + 1,
+        "total_reward": total_reward,
+        "ticks": tick_count,
+        "buoys_passed": env.current_buoy_index,
+        "learning_rate": current_lr,
+        "entropy_coef": entropy_coef_display
+    })
+
+with open("./logs/actorcritic.csv", "w") as f:
+    writer = csv.DictWriter(f, fieldnames=logs[0].keys())
+    writer.writeheader()
+    writer.writerows(logs)
 
 input("Training complete. Press Enter to run inference...")
 
