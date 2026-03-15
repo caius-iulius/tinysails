@@ -5,9 +5,13 @@
 #set page(
     paper: "a4"
 )
-#set heading(numbering: "1.a")
+#set heading(numbering: "1.1.a")
+#set text(12pt)
 
 #title()
+Cesare Siringo `cesare.siringo@santannapisa.it`
+
+#align(center, image("thumbnail.png", width: 75%))
 
 = Introduction
 The aim of this project is training a small neural networks to sail a regatta in minimal time. Here, a regatta is a collection of buoys that must be reached in order. The complexity of this task is not readily apparent, but it boils down to solving the biggest problem it presents: sailing upwind. To do that an agent must learn not to aim directly at the next buoy, but to approach it at an angle. To do that it must forego the immediate reward of closing in on the buoy as fast as possible and reap it afterwards on the closing leg instead. In #ref(<phys>) we explain how the physical model of the boat is constructed and what assumptions are made. In #ref(<env>) we explain the main choices made in structuring the environment and decisions that apply generally to every architecture considered. In #ref(<train>) we show the performance of all architectures in order of increasing complexity. The Proximal Policy Optimization architecture was also implemented, but left out as it did not provide benefits, probably as it disincentivises exploration and is more subject to hyperparameter variation.
@@ -40,7 +44,13 @@ To find kinematics, simple explicit euler integration is employed.
 First, we extract relative wind:
 $w_(r e l) = w - hat(h)v$
 
-Given a sail versor $hat(s)$, we find the wind's perpendicular component to it: $w_perp = w_(r e l) - (w_(r e l) dot hat(s))hat(s)$ and the sail's force on the hull: $F_s = L_s w_perp$ //TODO: w_perp squared?
+Given a sail versor $hat(s)$, we find the wind's perpendicular component to it:
+
+$w_perp = w_(r e l) - (w_(r e l) dot hat(s))hat(s)$
+
+and the sail's force on the hull:
+
+$F_s = L_s w_perp$ //TODO: w_perp squared?
 
 We can now use our centreboat assumption project this force on the boat's heading versor:
 
@@ -97,7 +107,50 @@ The state space is inherently continuous. An attempt has been made to discretize
 
 As a result, we shifted to their continuous counterparts: REINFORCE and Actor-Critic, while keeping the action space discrete. Every model has three output neurons, that corresponds to the rudder being at $-45deg$, $0deg$, $+45deg$.
 
+The state returned by the environment is a 7-tuple representing the distance to the next buoy, sine and cosine of the angle to the next buoy, sine and cosine of relative wind, boat speed, boat rotational velocity.
+
 = Training the Agent <train>
+Since training a RL agent requires both dense and sparse rewards, all loss functions used present three elements: Velocity Made Good as sparse reward, a sparse reward for reaching a buoy, and a punishment for losing time.
+
 == REINFORCE
+The REINFORCE training algorithm is the simplest continuous state space method possible. It is essentially the contiuous analog of the Monte-Carlo method. We trained a network of topology $7 times 8 times 8 times 3$. HYPERPARAMETERS. SPECIFIC LOSS FUNCTION. PERFORMANCE, REMARKS, JITTERY CONTROL (no 0), NO TACKING, SMALL NETWORKS ONLY
+
+#figure(image("reinforce_comparison.png"), caption: [Reward and time to completion of a small and a big network trained using REINFORCE])
+
 == Actor Critic
+we now move roba roba
+supports bigger nets
+orders of magnitude less data
+finds acceptable solution in \~10 episodes
+
+#figure(image("reinforce_vs_actorcritic_oldcourse.png"), caption: [REINFORCE vs Actor-Critic trained on the same course])
+
+=== Classical Actor Critic
+policy collapse
+Introduction of learning schedule and entropy
+change of reward function
+now stable rewards but still suffer collapse, training must be run multiple times to find an excellent run
+stable controls
+is capable of tacking
+
+#figure(image("actorcritic_comparison.png"), caption: [Classical Actor-Critic performance])
+
+=== Batched Actor Critic
+More stable training
+efficient tensor backprop
+needs more training
+shows signs of overfitting on training course, while still able to complete general courses
+
+#figure(image("actorcritic_batched_comparison.png"), caption: [Batched Actor-Critic performance])
+
+=== Randomized Environments
+Rules of environment generation
+Addressing reward invariance
+Addressing no need of parallelization
+Evaluation methodology
+
+#figure(image("actorcritic_randomized_comparison.png"), caption: [Randomized Actor-Critic performance])
+
+#figure(image("actorcritic_comparison_all.png"), caption: [Comparison of all Actor-Critic methods])
+
 = Conclusions and Further Work

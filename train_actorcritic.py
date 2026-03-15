@@ -79,7 +79,7 @@ model = ActorCriticNetwork()
 optimizer = optim.Adam(model.parameters(), lr=0.0005)
 
 gamma = 0.99
-num_episodes = 1000
+num_episodes = 2000
 lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
     optimizer, T_max=num_episodes, eta_min=5e-5
 )

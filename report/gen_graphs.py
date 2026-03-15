@@ -1,174 +1,177 @@
 import matplotlib.pyplot as plt
 import csv
 
-reinforce_small_data = []
-with open('../logs/reinforce_small.csv', 'r') as csvfile:
-    reader = csv.DictReader(csvfile)
-    for row in reader:
-        reinforce_small_data.append({
-            "episode": int(row["episode"]),
-            "total_reward": float(row["total_reward"]),
-            "ticks": int(row["ticks"]),
-            "buoys_passed": int(row["buoys_passed"])
-        })
+def load_csv(path):
+    data = []
+    with open(path, 'r') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            d = {}
+            for k, v in row.items():
+                try:
+                    d[k] = int(v)
+                except ValueError:
+                    try:
+                        d[k] = float(v)
+                    except ValueError:
+                        d[k] = v
+            data.append(d)
+    return data
 
-reinforce_big_data = []
-with open('../logs/reinforce_big.csv', 'r') as csvfile:
-    reader = csv.DictReader(csvfile)
-    for row in reader:
-        reinforce_big_data.append({
-            "episode": int(row["episode"]),
-            "total_reward": float(row["total_reward"]),
-            "ticks": int(row["ticks"]),
-            "buoys_passed": int(row["buoys_passed"])
-        })
+def plot_smooth(x, y, label, color, window=50):
+    smoothed = [sum(y[max(0, i-window+1):i+1]) / len(y[max(0, i-window+1):i+1]) for i in range(len(y))]
+    plt.plot(x, y, color=color, alpha=0.2)
+    plt.plot(x, smoothed, label=label, color=color, linewidth=1.5)
 
-actorcritic_oldcourse_data = []
-with open('../logs/actorcritic_logs_oldcourse.csv', 'r') as csvfile:
-    reader = csv.DictReader(csvfile)
-    for row in reader:
-        actorcritic_oldcourse_data.append({
-            "episode": int(row["episode"]),
-            "total_reward": float(row["total_reward"]),
-            "ticks": int(row["ticks"]),
-            "buoys_passed": int(row["buoys_passed"]),
-            "learning_rate": float(row["learning_rate"]),
-            "entropy_coef": float(row["entropy_coef"])
-        })
-
-actorcritic_data = []
-with open('../logs/actorcritic.csv', 'r') as csvfile:
-    reader = csv.DictReader(csvfile)
-    for row in reader:
-        actorcritic_data.append({
-            "episode": int(row["episode"]),
-            "total_reward": float(row["total_reward"]),
-            "ticks": int(row["ticks"]),
-            "buoys_passed": int(row["buoys_passed"]),
-            "learning_rate": float(row["learning_rate"]),
-            "entropy_coef": float(row["entropy_coef"])
-        })
-
-actorcritic_batched_data = []
-with open('../logs/actorcritic_batched.csv', 'r') as csvfile:
-    reader = csv.DictReader(csvfile)
-    for row in reader:
-        actorcritic_batched_data.append({
-            "episode": int(row["episode"]),
-            "total_reward": float(row["total_reward"]),
-            "ticks": int(row["ticks"]),
-            "buoys_passed": int(row["buoys_passed"]),
-            "learning_rate": float(row["learning_rate"]),
-            "entropy_coef": float(row["entropy_coef"])
-        })
-
-actorcritic_randomized_data = []
-with open('../logs/actorcritic_randomized.csv', 'r') as csvfile:
-    reader = csv.DictReader(csvfile)
-    for row in reader:
-        actorcritic_randomized_data.append({
-            "episode": int(row["episode"]),
-            "total_reward": float(row["total_reward"]),
-            "ticks": int(row["ticks"]),
-            "buoys_passed": int(row["buoys_passed"]),
-            "std_total_reward": float(row["std_total_reward"]),
-            "std_ticks": float(row["std_ticks"]),
-            "std_buoys_passed": float(row["std_buoys_passed"]),
-            "learning_rate": float(row["learning_rate"]),
-            "entropy_coef": float(row["entropy_coef"])
-        })
-
-# generates graph of reward and time by episode of big and small reinforce
-# shows nothign if not available for that episode
+reinforce_small_data = load_csv('../logs/reinforce_small.csv')
+reinforce_big_data = load_csv('../logs/reinforce_big.csv')
+actorcritic_oldcourse_data = load_csv('../logs/actorcritic_logs_oldcourse.csv')
+actorcritic_data = load_csv('../logs/actorcritic.csv')
+actorcritic_batched_data = load_csv('../logs/actorcritic_batched.csv')
+actorcritic_randomized_data = load_csv('../logs/actorcritic_randomized.csv')
+actorcritic_2buoy = load_csv('../logs/actorcritic_2buoy.csv')
 
 plt.figure(figsize=(12, 6))
 plt.subplot(1, 2, 1)
 plt.title("Total Reward by Episode")
-plt.plot([d["episode"] for d in reinforce_big_data], [d["total_reward"] for d in reinforce_big_data], label="Reinforce Big", color='orange')
-plt.plot([d["episode"] for d in reinforce_small_data], [d["total_reward"] for d in reinforce_small_data], label="Reinforce Small", color='blue')
-
-#save plot
+plot_smooth([d["episode"] for d in reinforce_big_data], [d["total_reward"] for d in reinforce_big_data], "Reinforce Big", 'orange')
+plot_smooth([d["episode"] for d in reinforce_small_data], [d["total_reward"] for d in reinforce_small_data], "Reinforce Small", 'blue')
 plt.xlabel("Episode")
 plt.ylabel("Total Reward")
 plt.legend()
+plt.grid(True, alpha=0.3)
+
 plt.subplot(1, 2, 2)
 plt.title("Ticks by Episode")
-plt.plot([d["episode"] for d in reinforce_big_data], [d["ticks"] for d in reinforce_big_data], label="Reinforce Big", color='orange')
-plt.plot([d["episode"] for d in reinforce_small_data], [d["ticks"] for d in reinforce_small_data], label="Reinforce Small", color='blue')
+plot_smooth([d["episode"] for d in reinforce_big_data], [d["ticks"] for d in reinforce_big_data], "Reinforce Big", 'orange')
+plot_smooth([d["episode"] for d in reinforce_small_data], [d["ticks"] for d in reinforce_small_data], "Reinforce Small", 'blue')
 plt.xlabel("Episode")
 plt.ylabel("Ticks")
 plt.legend()
+plt.grid(True, alpha=0.3)
 plt.tight_layout()
 plt.savefig("reinforce_comparison.png")
 
-# comparison of reinforce_small and old course actor critic (ticks)
 plt.figure(figsize=(12, 6))
 plt.subplot(1, 2, 1)
 plt.title("Ticks by Episode")
-plt.plot([d["episode"] for d in reinforce_small_data], [d["ticks"] for d in reinforce_small_data], label="Reinforce Small", color='blue')
-plt.plot([d["episode"] for d in actorcritic_oldcourse_data], [d["ticks"] for d in actorcritic_oldcourse_data], label="Actor-Critic Old Course", color='green')
+plot_smooth([d["episode"] for d in reinforce_small_data], [d["ticks"] for d in reinforce_small_data], "Reinforce Small", 'blue')
+plot_smooth([d["episode"] for d in actorcritic_oldcourse_data], [d["ticks"] for d in actorcritic_oldcourse_data], "Actor-Critic Old Course", 'green')
 plt.xlabel("Episode")
 plt.ylabel("Ticks")
 plt.legend()
+plt.grid(True, alpha=0.3)
+
 plt.subplot(1, 2, 2)
 plt.title("Buoys Passed by Episode")
-plt.plot([d["episode"] for d in reinforce_small_data], [d["buoys_passed"] for d in reinforce_small_data], label="Reinforce Small", color='blue')
-plt.plot([d["episode"] for d in actorcritic_oldcourse_data], [d["buoys_passed"] for d in actorcritic_oldcourse_data], label="Actor-Critic Old Course", color='green')
+plot_smooth([d["episode"] for d in reinforce_small_data], [d["buoys_passed"] for d in reinforce_small_data], "Reinforce Small", 'blue')
+plot_smooth([d["episode"] for d in actorcritic_oldcourse_data], [d["buoys_passed"] for d in actorcritic_oldcourse_data], "Actor-Critic Old Course", 'green')
 plt.xlabel("Episode")
 plt.ylabel("Buoys Passed")
 plt.legend()
+plt.grid(True, alpha=0.3)
 plt.tight_layout()
 plt.savefig("reinforce_vs_actorcritic_oldcourse.png")
 
-# graph of rewards, ticks, and buoys passed by episode for actorcritic
 plt.figure(figsize=(12, 6))
 plt.subplot(1, 2, 1)
 plt.title("Total Reward by Episode")
-plt.plot([d["episode"] for d in actorcritic_data], [d["total_reward"] for d in actorcritic_data], label="Actor-Critic", color='green')
+plot_smooth([d["episode"] for d in actorcritic_data], [d["total_reward"] for d in actorcritic_data], "Actor-Critic", 'green')
 plt.xlabel("Episode")
 plt.ylabel("Total Reward")
 plt.legend()
+plt.grid(True, alpha=0.3)
+
 plt.subplot(1, 2, 2)
 plt.title("Ticks by Episode")
-plt.plot([d["episode"] for d in actorcritic_data], [d["ticks"] for d in actorcritic_data], label="Actor-Critic", color='green')
+plot_smooth([d["episode"] for d in actorcritic_data], [d["ticks"] for d in actorcritic_data], "Actor-Critic", 'green')
 plt.xlabel("Episode")
 plt.ylabel("Ticks")
 plt.legend()
+plt.grid(True, alpha=0.3)
 plt.tight_layout()
 plt.savefig("actorcritic_comparison.png")
 
-# graph of rewards, ticks, and buoys passed by episode for actorcritic-batched
 plt.figure(figsize=(12, 6))
 plt.subplot(1, 2, 1)
 plt.title("Total Reward by Episode")
-plt.plot([d["episode"] for d in actorcritic_batched_data], [d["total_reward"] for d in actorcritic_batched_data], label="Actor-Critic", color='green')
+plot_smooth([d["episode"] for d in actorcritic_batched_data], [d["total_reward"] for d in actorcritic_batched_data], "Actor-Critic", 'blue')
 plt.xlabel("Episode")
 plt.ylabel("Total Reward")
 plt.legend()
+plt.grid(True, alpha=0.3)
+
 plt.subplot(1, 2, 2)
 plt.title("Ticks by Episode")
-plt.plot([d["episode"] for d in actorcritic_batched_data], [d["ticks"] for d in actorcritic_batched_data], label="Actor-Critic", color='green')
+plot_smooth([d["episode"] for d in actorcritic_batched_data], [d["ticks"] for d in actorcritic_batched_data], "Actor-Critic", 'blue')
 plt.xlabel("Episode")
 plt.ylabel("Ticks")
 plt.legend()
+plt.grid(True, alpha=0.3)
 plt.tight_layout()
 plt.savefig("actorcritic_batched_comparison.png")
 
-# graph of rewards, standard rewards, standard ticks for actorcritic-randomized
 plt.figure(figsize=(12, 6))
 plt.subplot(1, 2, 1)
 plt.title("Total Reward by Episode")
-plt.plot([d["episode"] for d in actorcritic_randomized_data], [d["total_reward"] for d in actorcritic_randomized_data], label="Actor-Critic Randomized", color='green')
-plt.plot([d["episode"] for d in actorcritic_randomized_data], [d["std_total_reward"] for d in actorcritic_randomized_data], label="Standardized Total Reward", color='orange')
+plot_smooth([d["episode"] for d in actorcritic_randomized_data], [d["total_reward"] for d in actorcritic_randomized_data], "Actor-Critic Randomized", 'green')
+plot_smooth([d["episode"] for d in actorcritic_randomized_data], [d["std_total_reward"] for d in actorcritic_randomized_data], "Standardized Total Reward", 'orange')
 plt.xlabel("Episode")
 plt.ylabel("Total Reward")
 plt.legend()
+plt.grid(True, alpha=0.3)
+
 plt.subplot(1, 2, 2)
 plt.title("Ticks by Episode")
-plt.plot([d["episode"] for d in actorcritic_randomized_data], [d["ticks"] for d in actorcritic_randomized_data], label="Actor-Critic Randomized", color='green')
-plt.plot([d["episode"] for d in actorcritic_randomized_data], [d["std_ticks"] for d in actorcritic_randomized_data], label="Standardized Ticks", color='orange')
+plot_smooth([d["episode"] for d in actorcritic_randomized_data], [d["ticks"] for d in actorcritic_randomized_data], "Actor-Critic Randomized", 'green')
+plot_smooth([d["episode"] for d in actorcritic_randomized_data], [d["std_ticks"] for d in actorcritic_randomized_data], "Standardized Ticks", 'orange')
 plt.xlabel("Episode")
 plt.ylabel("Ticks")
 plt.legend()
+plt.grid(True, alpha=0.3)
 plt.tight_layout()
 plt.savefig("actorcritic_randomized_comparison.png")
+
+plt.figure(figsize=(12, 6))
+plt.subplot(1, 2, 1)
+plt.title("Total Reward by Episode")
+plot_smooth([d["episode"] for d in actorcritic_2buoy], [d["total_reward"] for d in actorcritic_2buoy], "Actor-Critic 2 Buoy", 'green')
+plot_smooth([d["episode"] for d in actorcritic_2buoy], [d["std_total_reward"] for d in actorcritic_2buoy], "Standardized Total Reward", 'orange')
+plt.xlabel("Episode")
+plt.ylabel("Total Reward")
+plt.legend()
+plt.grid(True, alpha=0.3)
+
+plt.subplot(1, 2, 2)
+plt.title("Ticks by Episode")
+plot_smooth([d["episode"] for d in actorcritic_2buoy], [d["ticks"] for d in actorcritic_2buoy], "Actor-Critic 2 Buoy", 'green')
+plot_smooth([d["episode"] for d in actorcritic_2buoy], [d["std_ticks"] for d in actorcritic_2buoy], "Standardized Ticks", 'orange')
+plt.xlabel("Episode")
+plt.ylabel("Ticks")
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.savefig("actorcritic_2buoy_comparison.png")
+
+plt.figure(figsize=(12, 6))
+plt.subplot(1, 2, 1)
+plt.title("Standardized Total Reward by Episode")
+plot_smooth([d["episode"] for d in actorcritic_data], [d["total_reward"] for d in actorcritic_data], "Actor-Critic", 'green')
+plot_smooth([d["episode"] for d in actorcritic_batched_data], [d["total_reward"] for d in actorcritic_batched_data], "Actor-Critic Batched", 'blue')
+plot_smooth([d["episode"] for d in actorcritic_randomized_data], [d["std_total_reward"] for d in actorcritic_randomized_data], "Actor-Critic Randomized", 'orange')
+plt.xlabel("Episode")
+plt.ylabel("Total Reward")
+plt.legend()
+plt.grid(True, alpha=0.3)
+
+plt.subplot(1, 2, 2)
+plt.title("Standardized Ticks by Episode")
+plot_smooth([d["episode"] for d in actorcritic_data], [d["ticks"] for d in actorcritic_data], "Actor-Critic", 'green')
+plot_smooth([d["episode"] for d in actorcritic_batched_data], [d["ticks"] for d in actorcritic_batched_data], "Actor-Critic Batched", 'blue')
+plot_smooth([d["episode"] for d in actorcritic_randomized_data], [d["std_ticks"] for d in actorcritic_randomized_data], "Actor-Critic Randomized", 'orange')
+plt.xlabel("Episode")
+plt.ylabel("Ticks")
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.savefig("actorcritic_comparison_all.png")
