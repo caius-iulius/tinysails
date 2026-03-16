@@ -2,3 +2,4 @@ pygame-ce
 numpy
 scipy
 matplotlib
+torch
