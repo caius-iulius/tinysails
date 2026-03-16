@@ -1,17 +1,46 @@
 #set document(
-    title: [`tinysails`: Teaching an agent to sail],
-    author: "Cesare Siringo",
+  title: [`tinysails`: Teaching an agent to sail],
+  author: "Cesare Siringo",
 )
-#set page(
-    paper: "a4"
-)
+#set page( paper: "a4" )
+// #set text(size: 12pt)
+
+#align(center)[
+  #text(size: 26pt, weight: "bold")[
+    `tinysails`: Teaching an agent to sail
+  ]
+
+  #text(size: 14pt)[
+    *Cesare Siringo* \
+    `cesare.siringo@santannapisa.it` \
+    #datetime.today().display()
+  ]
+
+  #v(3em)
+
+  // Cover Image
+  #image("thumbnail.png", width: 65%)
+
+  #v(4em)
+
+  // Abstract Section
+  #align(left)[
+    #heading(outlined: false, numbering: none)[Abstract]
+
+    // Pad the abstract to give it narrower margins than the main text
+    #pad(x: 1.5em)[
+      #set text(size: 11pt, style: "italic")
+      #set par(justify: true)
+
+      Autonomous navigation of a sailboat presents a unique reinforcement learning challenge due to the complex, non-linear dynamics of wind-powered locomotion, most notably the inability to sail directly upwind. This paper introduces `tinysails`, a lightweight simulation environment with a simplified but qualitatively accurate 2D physical model of a sailboat. We explore the efficacy of several reinforcement learning architectures in teaching an agent to navigate a regatta course. Comparing REINFORCE and various Actor Critic methods in a continuous state space with discrete actions, we evaluate policy stability and sample efficiency. Our results demonstrate that while simple architectures struggle with angular momentum and policy collapse, a Batched Actor Critic model trained on randomized environments successfully learns optimal upwind tacking strategies and resists overfitting, yielding a highly stable navigation policy.
+    ]
+  ]
+]
+
+#pagebreak()
+
 #set heading(numbering: "1.1.a")
-#set text(12pt)
-
-#title()
-Cesare Siringo `cesare.siringo@santannapisa.it`
-
-#align(center, image("thumbnail.png", width: 75%))
+#set par(justify: true)
 
 = Introduction
 The aim of this project is training a small neural network to sail a regatta in minimal time. Here, a regatta is a collection of buoys that must be reached in order. The complexity of this task is not readily apparent, but it boils down to solving the biggest problem it presents: sailing upwind. To achieve that an agent must learn not to aim directly at the next buoy, but to approach it at an angle and it must forego the immediate reward of closing in on the buoy as fast as possible and reap it afterwards on the closing leg instead. In #ref(<phys>) we explain how the physical model of the boat is constructed and what assumptions are made. In #ref(<env>) we explain the main choices made in structuring the environment and decisions that apply generally to every architecture considered. In #ref(<train>) we show the performance of all architectures in order of increasing complexity. The Proximal Policy Optimization architecture was also implemented, but left out as it did not provide benefits, probably as it disincentivises exploration and is more subject to hyperparameter variation.
@@ -21,7 +50,7 @@ Modeling the physics of a real boat would be extremely complicated and computati
 
 == Assumptions
 We consider a 2-dimensional sailboat with three surfaces: the main sail, a rudder, and a centerboard. The latter is assumed to have an infinite surface area so that no lateral movement occurs.
-Every surface is modeled as a "fluid reflector", that means that when the fluid impacts it with a force, the surface extracts the perpendicular component, while ignoring the parallel component, essentially projecting the force on its axis. This is different from real sails as they show wing-like behavior especially in upwind sailing.
+Every surface is modeled as a "fluid reflector", that means that when the fluid impacts it with a force, the surface extracts the perpendicular component, while ignoring the parallel component, essentially projecting the force on its axis. This is different from real sails as they show airfoil-like behavior especially in upwind sailing.
 
 The boat state is defined by the following variables:
 - $m$: mass
@@ -105,7 +134,7 @@ The environment is comprised of a boat and a sequence of buoys. Buoys must be re
 
 The state space is inherently continuous. An attempt has been made to discretize it with kohonen networks (see `python -m demos.kohonen_boat`), but it is clear that in order to capture significant information there would need to be hundreds or thousands of neurons, rendering Monte-Carlo, TD-learning and Q-learning unachievable.
 
-As a result, we shifted to their continuous counterparts: REINFORCE and Actor-Critic, while keeping the action space discrete. Every model has three output neurons, that corresponds to the rudder being at $-45deg$, $0deg$, $+45deg$.
+As a result, we shifted to their continuous counterparts: REINFORCE and Actor Critic, while keeping the action space discrete. Every model has three output neurons, that corresponds to the rudder being at $-45deg$, $0deg$, $+45deg$.
 
 The state returned by the environment is a 7-tuple representing the distance to the next buoy, sine and cosine of the angle to the next buoy, sine and cosine of relative wind, boat speed, boat rotational velocity.
 
@@ -121,7 +150,7 @@ Some hyperparameters are shared amongst all considered models. These are:
 == REINFORCE
 Training script: `python train_reinforce_small.py`
 
-The REINFORCE training algorithm is the simplest continuous state space method possible. It is essentially the continuous analog of the Monte-Carlo method. We trained a network on a simple 4-buoy which tested all gaits except tacking, to establish a baseline.
+The REINFORCE @Williams1992 training algorithm is the simplest continuous state space method possible. It is essentially the continuous analog of the Monte-Carlo method. We trained a network on a simple 4-buoy which tested all gaits except tacking, to establish a baseline.
 
 The specific hyperparameters are:
 - network of topology $7 times 8 times 8 times 3$
@@ -144,11 +173,13 @@ Shown below are the smoothed rewards and completion times of a big and a small n
 #figure(image("reinforce_comparison.png"), caption: [Reward and time to completion of a small and a big network trained using REINFORCE])
 
 == Actor Critic
-We now move to the Actor-Critc method, which, instead, can be viewed as the continuous analogue of TD-learning. There are many variants of Actor-Critic with different features. For simplicity, we focus on one-step Actor-Critic and Batched Actor-Critic.
+We now move to a variant of the Actor Critic methods, which, instead, can be viewed as the continuous analogue of TD-learning. There are many variants of Actor Critic with different features. For simplicity, we focus on one-step Actor Critic and Batched Actor Critic.
 
-The graph below shows the performance of REINFORCE and Actor-Critic (as structured in #ref(<cac>)) trained on the same course. It can be seen that Actor-Critic is clearly more sample-efficient than REINFORCE, finding acceptable solutions in around 10 episodes, while also being more locally stable than REINFORCE (that is, while the reward function still fluctuates, it does so in a bigger timeframe).
+Our specific method can be viewed as an Advantage Actor Critic (A2C) architecture with a single instance of the agent. A2C itself is OpenAI's variant of A3C @Mnih2016
 
-#figure(image("reinforce_vs_actorcritic_oldcourse.png"), caption: [REINFORCE vs Actor-Critic trained on the same course])
+The graph below shows the performance of REINFORCE and Actor Critic (as structured in #ref(<cac>)) trained on the same course. It can be seen that Actor Critic is clearly more sample-efficient than REINFORCE, finding acceptable solutions in around 10 episodes, while also being more locally stable than REINFORCE (that is, while the reward function still fluctuates, it does so in a bigger timeframe).
+
+#figure(image("reinforce_vs_actorcritic_oldcourse.png"), caption: [REINFORCE vs Actor Critic trained on the same course])
 
 === One-Step Actor Critic <cac>
 Training script: `python train_actorcritic.py`
@@ -171,7 +202,7 @@ $ r = ( 0.1(i - N + 1) + 0.5(arrow(v)_"boat" dot hat(u)_"buoy") ) Delta t + case
 
 This method has been tested on a course which tests all possible gaits, including tacking, and is capable of finding good policies which are both capable of basic tacking with slow turns (leading to occasional failure in irons), and stable controls with no rudder banging. However it still suffers from occasional policy collapse, which sometimes it recovers from, and must be run multiple times to find close-to-optimal solutions.
 
-#figure(image("actorcritic_comparison.png"), caption: [One-Step Actor-Critic performance])
+#figure(image("actorcritic_comparison.png"), caption: [One-Step Actor Critic performance])
 
 === Batched Actor Critic <bac>
 Training script: `python train_actorcritic_batched.py`
@@ -188,9 +219,9 @@ The model's structure is unchanged, while the hyperparameters are as follows:
 
 The reward function is unchanged.
 
-#figure(image("actorcritic_batched_comparison.png"), caption: [Batched Actor-Critic performance])
+#figure(image("actorcritic_batched_comparison.png"), caption: [Batched Actor Critic performance])
 
-While being a great improvement over One-Step Actor-Critic, the model still suffers from some instabilities and makes some clearly suboptimal choices during inference. Moreover, when tested on other courses, it shows some signs of overfitting, while still being able to complete generic courses.
+While being a great improvement over One-Step Actor Critic, the model still suffers from some instabilities and makes some clearly suboptimal choices during inference. Moreover, when tested on other courses, it shows some signs of overfitting, while still being able to complete generic courses. Tacking is significantly improved, as it shows the ability to execute sharp turns when necessary.
 
 === Randomized Environments <rac>
 Training script: `python train_actorcritic_randomized.py`
@@ -206,10 +237,21 @@ $ r = ( 0.2(i - N + 1) + 0.5(arrow(v)_"boat" dot hat(u)_"buoy") ) Delta t + case
 
 In order to extract a useful performance metric for the model, it is run over the same standardized course used in the non-randomized cases. These values aren't used during training, but are useful for visual comparisons with the previous methods.
 
-#figure(image("actorcritic_randomized_comparison.png"), caption: [Randomized Actor-Critic performance])
+#figure(image("actorcritic_randomized_comparison.png"), caption: [Randomized Actor Critic performance])
 
-Below is the comparison between all three Actor-Critic methods. The interesting result is that even though the randomized method isn't trained on the evaluation course, it is both better and more stable on it than the previous, specialized, models.
+Below is the comparison between all three Actor Critic methods. The interesting result is that even though the randomized method isn't trained on the evaluation course, it is both better and more stable on it than the previous, specialized, models.
 
-#figure(image("actorcritic_comparison_all.png"), caption: [Comparison of all Actor-Critic methods])
+#figure(image("actorcritic_comparison_all.png"), caption: [Comparison of all Actor Critic methods])
 
-= Conclusions and Further Work
+= Conclusions
+
+In this project, we successfully trained a reinforcement learning agent to navigate a sailboat through a sequence of buoys in minimal time. By developing a simplified 2D physical model that accurately captures essential sailing dynamics we created an effective environment for training.
+
+Our experiments highlighted the limitations of simpler algorithms in this domain. Small networks trained with REINFORCE struggled to learn the nuances of angular momentum, often resulting in erratic rudder control. Transitioning to Actor Critic architectures significantly improved sample efficiency and policy stability. Ultimately, we found that introducing randomized environments during training, combined with batched backpropagation, was crucial. It prevented the agent from overfitting to a specific course and forced it to learn a generalized, robust sailing policy capable of complex maneuvers like tacking.
+
+= Further Work
+There are several promising avenues for expanding upon `tinysails`.
+First, an learning algorithm specialized to continuous state spaces and discrete action spaces could be implemented, such as Deep Q-Learning. Alternatively, expanding the action space from discrete rudder angles to a fully continuous action space, potentially controlling the sail trim alongside the rudder, would allow for more precise and realistic boat handling.
+Finally, the physical model could be upgraded to simulate the airfoil-like behavior of sails, allowing for lift and drag coefficients that vary non-linearly with the angle of attack. Introducing lateral drift would also increase realism. Future iterations could introduce dynamic environmental factors, such as shifting wind directions, gusts, and water currents, to test the agent's adaptability in highly stochastic conditions.
+
+#bibliography("citations.bib")
