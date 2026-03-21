@@ -8,8 +8,8 @@ import pygame
 import numpy as np
 import csv
 
+# model
 def normalize_state(state):
-    # Scale distance, angles, and speed to roughly [-1, 1]
     return [
         state[0] / 50.0, # next buoy dist
         state[1], # next buoy sin
@@ -33,17 +33,7 @@ class ReinforcePolicy(nn.Module):
         x = self.fc3(x)
         return torch.softmax(x, dim=-1)
 
-boat_params = {
-    "mass": 3.0,
-    "drag_coefficient": 1.0,
-    "lift_coefficient": 45.0,
-    "rotational_drag_coefficient": 3.0,
-    "rudder_lift_coefficient": 2.0,
-    "heading": [1, 0]
-}
-buoys = [[-30,0],[0,-30],[0,30],[30,0],]
-wind_vector = [0, 10]
-
+# reward function
 def score_boat_tick(env, time, dt):
     score = 0
     if env.current_buoy_index >= len(buoys):
@@ -61,15 +51,30 @@ def score_boat_tick(env, time, dt):
 
     return score
 
-logs = []
-
-env = RegattaEnv(boat_params, buoys, wind_vector)
-policy = ReinforcePolicy()
-optimizer = optim.Adam(policy.parameters(), lr=0.002)
-
+# hyperparameters
+lr=0.002
 gamma = 0.99
 num_episodes = 2000
 
+# physics params
+boat_params = {
+    "mass": 3.0,
+    "drag_coefficient": 1.0,
+    "lift_coefficient": 45.0,
+    "rotational_drag_coefficient": 3.0,
+    "rudder_lift_coefficient": 2.0,
+    "heading": [1, 0]
+}
+buoys = [[-30,0],[0,-30],[0,30],[30,0],]
+wind_vector = [0, 10]
+
+# globals
+env = RegattaEnv(boat_params, buoys, wind_vector)
+policy = ReinforcePolicy()
+optimizer = optim.Adam(policy.parameters(), lr=lr)
+
+# training
+logs = []
 for episode in range(num_episodes):
     state = env.reset()
     log_probs = []
@@ -78,18 +83,12 @@ for episode in range(num_episodes):
     tick_count = 0
 
     while not done and tick_count < 1000:
-        # Convert continuous state list to tensor
         state_tensor = torch.tensor(normalize_state(state), dtype=torch.float32)
-
-        # Network outputs probabilities for actions 0 and 1
         action_probs = policy(state_tensor)
 
-        # Sample discrete action
         m = Categorical(action_probs)
         action = m.sample()
 
-        # Step the environment
-        # print(f"Episode {episode + 1:3d} | Tick {tick_count:4d} | Action taken: {action.item()-1}")
         next_state, done = env.step(action.item()-1, tick_count*0.1, 0.1)
         reward = score_boat_tick(env, tick_count*0.1, 0.1)
 
@@ -99,7 +98,6 @@ for episode in range(num_episodes):
         state = next_state
         tick_count += 1
 
-    # Calculate returns
     returns = []
     R = 0
     for r in reversed(rewards):
@@ -110,7 +108,6 @@ for episode in range(num_episodes):
     if len(returns) > 1:
         returns = (returns - returns.mean()) / (returns.std() + 1e-9)
 
-    # Update policy
     policy_loss = []
     for log_prob, R in zip(log_probs, returns):
         policy_loss.append(-log_prob * R)
@@ -120,7 +117,6 @@ for episode in range(num_episodes):
     loss.backward()
     optimizer.step()
 
-    # if (episode + 1) % 5 == 0:
     total_reward = sum(rewards)
     print(f"Episode {episode + 1:3d} | Total Reward: {total_reward:7.2f} | Ticks simulated: {tick_count:3d} | Buoys passed: {env.current_buoy_index}")
     logs.append({

@@ -8,8 +8,8 @@ import pygame
 import numpy as np
 import csv
 
+# model
 def normalize_state(state):
-    # Scale distance, angles, and speed to roughly [-1, 1]
     return [
         state[0] / 50.0, # next buoy dist
         state[1], # next buoy sin
@@ -42,18 +42,7 @@ class ActorCriticNetwork(nn.Module):
 
         return action_probs, state_value
 
-boat_params = {
-    "mass": 3.0,
-    "drag_coefficient": 1.0,
-    "lift_coefficient": 45.0,
-    "rotational_drag_coefficient": 3.0,
-    "rudder_lift_coefficient": 2.0,
-    "heading": [1, 0]
-}
-buoys = [[-30,0],[0,-30],[0,25],[30,0],[0,0],[0,30],[0,-25]]
-wind_vector = [0, 10]
-
-
+# reward function
 def score_boat_tick(env, time, dt):
     score = 0.1*(env.current_buoy_index - len(env.buoys) + 1)
     #score = -0.5*(1 - env.current_buoy_index/len(env.buoys))
@@ -72,21 +61,37 @@ def score_boat_tick(env, time, dt):
 
     return score
 
-logs = []
-
-env = RegattaEnv(boat_params, buoys, wind_vector)
-model = ActorCriticNetwork()
-optimizer = optim.Adam(model.parameters(), lr=0.0005)
-
+# hyperparameters
 gamma = 0.99
 num_episodes = 2000
-lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
-    optimizer, T_max=num_episodes, eta_min=5e-5
-)
+lr_start = 0.0005
+lr_end = 5e-5
 
 entropy_coef_start = 0.10
 entropy_coef_end   = 0.005
 
+# physics params
+boat_params = {
+    "mass": 3.0,
+    "drag_coefficient": 1.0,
+    "lift_coefficient": 45.0,
+    "rotational_drag_coefficient": 3.0,
+    "rudder_lift_coefficient": 2.0,
+    "heading": [1, 0]
+}
+buoys = [[-30,0],[0,-30],[0,25],[30,0],[0,0],[0,30],[0,-25]]
+wind_vector = [0, 10]
+
+# globals
+env = RegattaEnv(boat_params, buoys, wind_vector)
+model = ActorCriticNetwork()
+optimizer = optim.Adam(model.parameters(), lr=lr_start)
+lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
+    optimizer, T_max=num_episodes, eta_min=lr_end
+)
+
+# training
+logs = []
 best_ticks = 1500
 for episode in range(num_episodes):
     state = env.reset()
@@ -94,41 +99,35 @@ for episode in range(num_episodes):
     tick_count = 0
     total_reward = 0
 
+    progress = episode / max(num_episodes - 1, 1)
+    entropy_coef = entropy_coef_start + (entropy_coef_end - entropy_coef_start) * progress
+
     while not done and tick_count < 1500:
-        # 1. Evaluate current state
         state_tensor = torch.tensor(normalize_state(state), dtype=torch.float32)
         action_probs, state_value = model(state_tensor)
 
-        # 2. Sample action
         m = Categorical(action_probs)
         action = m.sample()
 
-        # 3. Step environment
         next_state, done = env.step(action.item() - 1, tick_count * 0.1, 0.1)
         reward = score_boat_tick(env, tick_count * 0.1, 0.1)
-
         total_reward += reward
 
-        # 4. Evaluate NEXT state (Bootstrapping)
+        # bootstrap
         next_state_tensor = torch.tensor(normalize_state(next_state), dtype=torch.float32)
         _, next_state_value = model(next_state_tensor)
 
-        # 5. Calculate TD Target and Advantage
         td_target = reward + gamma * next_state_value * (1 - int(done))
         advantage = td_target - state_value
 
-        # Calculate entropy bonus to encourage exploration.
+        # entropy bonus
         entropy = m.entropy()
-        progress = episode / max(num_episodes - 1, 1)
-        entropy_coef = entropy_coef_start + (entropy_coef_end - entropy_coef_start) * progress
 
-        # 6. Calculate Losses
-        actor_loss = -m.log_prob(action) * advantage.detach() - (entropy_coef * entropy)
+        # losses
+        actor_loss = -m.log_prob(action) * advantage.detach() - entropy_coef * entropy
         critic_loss = nn.functional.mse_loss(state_value, td_target.detach())
+        loss = actor_loss + critic_loss
 
-        loss = actor_loss + critic_loss # todo: scale critic down?
-
-        # 7. Update network immediately
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -136,18 +135,12 @@ for episode in range(num_episodes):
         state = next_state
         tick_count += 1
 
-    # Step both schedulers once per episode.
     lr_scheduler.step()
 
     current_lr = optimizer.param_groups[0]['lr']
     progress    = episode / max(num_episodes - 1, 1)
     entropy_coef_display = entropy_coef_start + (entropy_coef_end - entropy_coef_start) * progress
     print(f"Episode {episode + 1:3d} | Total Reward: {total_reward:7.2f} | Ticks: {tick_count:3d} | Buoys: {env.current_buoy_index} | LR: {current_lr:.6f} | Ent: {entropy_coef_display:.4f}")
-    if tick_count < best_ticks:
-        best_ticks = tick_count
-        print(f"New best time: {best_ticks} ticks")
-        torch.save(model.state_dict(), "./models/actorcritic_model.pth")
-
     logs.append({
         "episode": episode + 1,
         "total_reward": total_reward,
@@ -156,6 +149,11 @@ for episode in range(num_episodes):
         "learning_rate": current_lr,
         "entropy_coef": entropy_coef_display
     })
+
+    if tick_count < best_ticks:
+        best_ticks = tick_count
+        print(f"New best time: {best_ticks} ticks")
+        torch.save(model.state_dict(), "./models/actorcritic_model.pth")
 
 with open("./logs/actorcritic.csv", "w") as f:
     writer = csv.DictWriter(f, fieldnames=logs[0].keys())

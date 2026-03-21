@@ -7,7 +7,7 @@ class EuclidKohonen:
         self.map_shape = map_shape
         self.dimensions = dimensions
         #self.weights = np.random.rand(*(*map_shape, dimensions))
-        # TODO: cosa stracazzo fa sta cosa?
+
         grid_axes = [np.linspace(0, 1, num=s) for s in map_shape]
         grid = np.meshgrid(*grid_axes, indexing='ij')
         self.weights = np.stack(grid, axis=-1).reshape(*map_shape, dimensions)

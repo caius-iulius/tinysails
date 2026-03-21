@@ -5,7 +5,6 @@ import game_abstraction
 import pygame
 
 def normalize_state(state):
-    # Scale distance, angles, and speed to roughly [-1, 1]
     return [
         state[0] / 50.0, # next buoy dist
         state[1], # next buoy sin
