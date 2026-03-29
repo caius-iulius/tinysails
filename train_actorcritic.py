@@ -64,6 +64,7 @@ def score_boat_tick(env, time, dt):
 # hyperparameters
 gamma = 0.99
 num_episodes = 2000
+num_seeds = 5
 lr_start = 0.0005
 lr_end = 5e-5
 
@@ -81,79 +82,86 @@ boat_params = {
 }
 buoys = [[-30,0],[0,-30],[0,25],[30,0],[0,0],[0,30],[0,-25]]
 wind_vector = [0, 10]
-
-# globals
 env = RegattaEnv(boat_params, buoys, wind_vector)
-model = ActorCriticNetwork()
-optimizer = optim.Adam(model.parameters(), lr=lr_start)
-lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
-    optimizer, T_max=num_episodes, eta_min=lr_end
-)
 
-# training
 logs = []
-best_ticks = 1500
-for episode in range(num_episodes):
-    state = env.reset()
-    done = False
-    tick_count = 0
-    total_reward = 0
 
-    progress = episode / max(num_episodes - 1, 1)
-    entropy_coef = entropy_coef_start + (entropy_coef_end - entropy_coef_start) * progress
+for seed in range(num_seeds):
+    print(f"--- Training Seed {seed} ---")
+    torch.manual_seed(seed)
+    np.random.seed(seed)
 
-    while not done and tick_count < 1500:
-        state_tensor = torch.tensor(normalize_state(state), dtype=torch.float32)
-        action_probs, state_value = model(state_tensor)
+    model = ActorCriticNetwork()
+    optimizer = optim.Adam(model.parameters(), lr=lr_start)
+    lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=num_episodes, eta_min=lr_end
+    )
 
-        m = Categorical(action_probs)
-        action = m.sample()
+    # training
+    best_ticks = 1500
+    for episode in range(num_episodes):
+        state = env.reset()
+        done = False
+        tick_count = 0
+        total_reward = 0
 
-        next_state, done = env.step(action.item() - 1, tick_count * 0.1, 0.1)
-        reward = score_boat_tick(env, tick_count * 0.1, 0.1)
-        total_reward += reward
+        progress = episode / max(num_episodes - 1, 1)
+        entropy_coef = entropy_coef_start + (entropy_coef_end - entropy_coef_start) * progress
 
-        # bootstrap
-        next_state_tensor = torch.tensor(normalize_state(next_state), dtype=torch.float32)
-        _, next_state_value = model(next_state_tensor)
+        while not done and tick_count < 1500:
+            state_tensor = torch.tensor(normalize_state(state), dtype=torch.float32)
+            action_probs, state_value = model(state_tensor)
 
-        td_target = reward + gamma * next_state_value * (1 - int(done))
-        advantage = td_target - state_value
+            m = Categorical(action_probs)
+            action = m.sample()
 
-        # entropy bonus
-        entropy = m.entropy()
+            next_state, done = env.step(action.item() - 1, tick_count * 0.1, 0.1)
+            reward = score_boat_tick(env, tick_count * 0.1, 0.1)
+            total_reward += reward
 
-        # losses
-        actor_loss = -m.log_prob(action) * advantage.detach() - entropy_coef * entropy
-        critic_loss = nn.functional.mse_loss(state_value, td_target.detach())
-        loss = actor_loss + critic_loss
+            # bootstrap
+            next_state_tensor = torch.tensor(normalize_state(next_state), dtype=torch.float32)
+            _, next_state_value = model(next_state_tensor)
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+            td_target = reward + gamma * next_state_value * (1 - int(done))
+            advantage = td_target - state_value
 
-        state = next_state
-        tick_count += 1
+            # entropy bonus
+            entropy = m.entropy()
 
-    lr_scheduler.step()
+            # losses
+            actor_loss = -m.log_prob(action) * advantage.detach() - entropy_coef * entropy
+            critic_loss = nn.functional.mse_loss(state_value, td_target.detach())
+            loss = actor_loss + critic_loss
 
-    current_lr = optimizer.param_groups[0]['lr']
-    progress    = episode / max(num_episodes - 1, 1)
-    entropy_coef_display = entropy_coef_start + (entropy_coef_end - entropy_coef_start) * progress
-    print(f"Episode {episode + 1:3d} | Total Reward: {total_reward:7.2f} | Ticks: {tick_count:3d} | Buoys: {env.current_buoy_index} | LR: {current_lr:.6f} | Ent: {entropy_coef_display:.4f}")
-    logs.append({
-        "episode": episode + 1,
-        "total_reward": total_reward,
-        "ticks": tick_count,
-        "buoys_passed": env.current_buoy_index,
-        "learning_rate": current_lr,
-        "entropy_coef": entropy_coef_display
-    })
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-    if tick_count < best_ticks:
-        best_ticks = tick_count
-        print(f"New best time: {best_ticks} ticks")
-        torch.save(model.state_dict(), "./models/actorcritic_model.pth")
+            state = next_state
+            tick_count += 1
+
+        lr_scheduler.step()
+
+        current_lr = optimizer.param_groups[0]['lr']
+        progress    = episode / max(num_episodes - 1, 1)
+        entropy_coef_display = entropy_coef_start + (entropy_coef_end - entropy_coef_start) * progress
+        print(f"Seed {seed} | Episode {episode + 1:3d} | Total Reward: {total_reward:7.2f} | Ticks: {tick_count:3d} | Buoys: {env.current_buoy_index} | LR: {current_lr:.6f} | Ent: {entropy_coef_display:.4f}")
+        logs.append({
+            "seed": seed,
+            "episode": episode + 1,
+            "total_reward": total_reward,
+            "ticks": tick_count,
+            "buoys_passed": env.current_buoy_index,
+            "learning_rate": current_lr,
+            "entropy_coef": entropy_coef_display
+        })
+
+        if tick_count < best_ticks:
+            best_ticks = tick_count
+            print(f"New best time for seed {seed}: {best_ticks} ticks")
+            torch.save(model.state_dict(), f"./models/actorcritic_model_seed_{seed}.pth")
+            torch.save(model.state_dict(), "./models/actorcritic_model.pth")
 
 with open("./logs/actorcritic.csv", "w") as f:
     writer = csv.DictWriter(f, fieldnames=logs[0].keys())
@@ -179,4 +187,5 @@ def inference(state):
     env_action = action.item() - 1
     return env_action, running
 
+env.reset()
 game_abstraction.run_game(env, inference)

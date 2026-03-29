@@ -56,7 +56,8 @@ def score_boat_tick(env, time, dt):
 # hyperparameters
 lr=0.0003
 gamma = 0.99
-num_episodes = 8000
+num_episodes = 4000
+num_seeds = 5
 
 # physics params
 boat_params = {
@@ -69,67 +70,72 @@ boat_params = {
 }
 buoys = [[-30,0],[0,-30],[0,30],[30,0],]
 wind_vector = [0, 10]
-
-# globals
 env = RegattaEnv(boat_params, buoys, wind_vector)
-policy = ReinforcePolicy()
-optimizer = optim.Adam(policy.parameters(), lr=lr)
 
-# training
 logs = []
-for episode in range(num_episodes):
-    state = env.reset()
-    log_probs = []
-    rewards = []
-    done = False
-    tick_count = 0
 
-    while not done and tick_count < 1000:
-        state_tensor = torch.tensor(normalize_state(state), dtype=torch.float32)
-        action_probs = policy(state_tensor)
+for seed in range(num_seeds):
+    print(f"--- Training Seed {seed} ---")
+    torch.manual_seed(seed)
+    np.random.seed(seed)
 
-        m = Categorical(action_probs)
-        action = m.sample()
+    policy = ReinforcePolicy()
+    optimizer = optim.Adam(policy.parameters(), lr=lr)
 
-        next_state, done = env.step(action.item()-1, tick_count*0.1, 0.1)
-        reward = score_boat_tick(env, tick_count*0.1, 0.1)
+    for episode in range(num_episodes):
+        state = env.reset()
+        log_probs = []
+        rewards = []
+        done = False
+        tick_count = 0
 
-        log_probs.append(m.log_prob(action))
-        rewards.append(reward)
+        while not done and tick_count < 1000:
+            state_tensor = torch.tensor(normalize_state(state), dtype=torch.float32)
+            action_probs = policy(state_tensor)
 
-        state = next_state
-        tick_count += 1
+            m = Categorical(action_probs)
+            action = m.sample()
 
-    returns = []
-    R = 0
-    for r in reversed(rewards):
-        R = r + gamma * R
-        returns.insert(0, R)
+            next_state, done = env.step(action.item()-1, tick_count*0.1, 0.1)
+            reward = score_boat_tick(env, tick_count*0.1, 0.1)
 
-    returns = torch.tensor(returns)
-    if len(returns) > 1:
-        returns = (returns - returns.mean()) / (returns.std() + 1e-9)
+            log_probs.append(m.log_prob(action))
+            rewards.append(reward)
 
-    policy_loss = []
-    for log_prob, R in zip(log_probs, returns):
-        policy_loss.append(-log_prob * R)
+            state = next_state
+            tick_count += 1
 
-    optimizer.zero_grad()
-    loss = torch.stack(policy_loss).sum()
-    loss.backward()
-    optimizer.step()
+        returns = []
+        R = 0
+        for r in reversed(rewards):
+            R = r + gamma * R
+            returns.insert(0, R)
 
-    total_reward = sum(rewards)
-    print(f"Episode {episode + 1:3d} | Total Reward: {total_reward:7.2f} | Ticks simulated: {tick_count:3d} | Buoys passed: {env.current_buoy_index}")
-    logs.append({
-        "episode": episode + 1,
-        "total_reward": total_reward,
-        "ticks": tick_count,
-        "buoys_passed": env.current_buoy_index
-    })
+        returns = torch.tensor(returns)
+        if len(returns) > 1:
+            returns = (returns - returns.mean()) / (returns.std() + 1e-9)
+
+        policy_loss = []
+        for log_prob, R in zip(log_probs, returns):
+            policy_loss.append(-log_prob * R)
+
+        optimizer.zero_grad()
+        loss = torch.stack(policy_loss).sum()
+        loss.backward()
+        optimizer.step()
+
+        total_reward = sum(rewards)
+        print(f"Seed {seed} | Episode {episode + 1:3d} | Total Reward: {total_reward:7.2f} | Ticks: {tick_count:3d} | Buoys: {env.current_buoy_index}")
+        logs.append({
+            "seed": seed,
+            "episode": episode + 1,
+            "total_reward": total_reward,
+            "ticks": tick_count,
+            "buoys_passed": env.current_buoy_index
+        })
 
 with open('logs/reinforce_big.csv', 'w', newline='') as csvfile:
-    fieldnames = ['episode', 'total_reward', 'ticks', 'buoys_passed']
+    fieldnames = ['seed', 'episode', 'total_reward', 'ticks', 'buoys_passed']
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
     writer.writeheader()
     for log in logs:
@@ -149,4 +155,5 @@ def inference(state):
     env_action = action.item()-1
     return env_action, running
 
+env.reset()
 game_abstraction.run_game(env, inference)

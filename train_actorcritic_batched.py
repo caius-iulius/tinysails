@@ -65,6 +65,7 @@ def score_boat_tick(env, time, dt):
 # hyperparameters
 gamma = 0.99
 num_episodes = 2000
+num_seeds = 5
 lr_start = 0.003
 lr_end = 1e-5
 
@@ -84,112 +85,119 @@ boat_params = {
 }
 buoys = [[-30,0],[0,-30],[0,25],[30,0],[0,0],[0,30],[0,-25]]
 wind_vector = [0, 10]
-
-# globals
 env = RegattaEnv(boat_params, buoys, wind_vector)
-model = ActorCriticNetwork()
-optimizer = optim.Adam(model.parameters(), lr=lr_start)
-lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
-    optimizer, T_max=num_episodes, eta_min=lr_end
-)
 
-# training
 logs = []
-best_ticks = 1500
 training_time = time.time()
-for episode in range(num_episodes):
-    state = env.reset()
-    done = False
-    tick_count = 0
-    total_reward = 0
 
-    progress = episode / max(num_episodes - 1, 1)
-    entropy_coef = entropy_coef_start + (entropy_coef_end - entropy_coef_start) * progress
+for seed in range(num_seeds):
+    print(f"--- Training Seed {seed} ---")
+    torch.manual_seed(seed)
+    np.random.seed(seed)
 
-    while not done and tick_count < 1500:
-        log_probs = []
-        values = []
-        rewards = []
-        masks = []
-        entropies = []
+    model = ActorCriticNetwork()
+    optimizer = optim.Adam(model.parameters(), lr=lr_start)
+    lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=num_episodes, eta_min=lr_end
+    )
 
-        # collect batch
-        for _ in range(batch_size):
-            if done or tick_count >= 1500:
-                break
+    # training
+    best_ticks = 1500
+    for episode in range(num_episodes):
+        state = env.reset()
+        done = False
+        tick_count = 0
+        total_reward = 0
 
-            state_tensor = torch.tensor(normalize_state(state), dtype=torch.float32)
-            action_probs, state_value = model(state_tensor)
+        progress = episode / max(num_episodes - 1, 1)
+        entropy_coef = entropy_coef_start + (entropy_coef_end - entropy_coef_start) * progress
 
-            m = Categorical(action_probs)
-            action = m.sample()
+        while not done and tick_count < 1500:
+            log_probs = []
+            values = []
+            rewards = []
+            masks = []
+            entropies = []
 
-            next_state, done = env.step(action.item() - 1, tick_count * 0.1, 0.1)
-            reward = score_boat_tick(env, tick_count * 0.1, 0.1)
-            total_reward += reward
+            # collect batch
+            for _ in range(batch_size):
+                if done or tick_count >= 1500:
+                    break
 
-            # save step
-            log_probs.append(m.log_prob(action))
-            values.append(state_value)
-            rewards.append(reward)
-            # Mask is 0 if the race finished, 1 otherwise
-            masks.append(1.0 - float(done))
-            entropies.append(m.entropy())
+                state_tensor = torch.tensor(normalize_state(state), dtype=torch.float32)
+                action_probs, state_value = model(state_tensor)
 
-            state = next_state
-            tick_count += 1
+                m = Categorical(action_probs)
+                action = m.sample()
 
-        # bootstrap
-        next_state_tensor = torch.tensor(normalize_state(state), dtype=torch.float32)
-        _, next_state_value = model(next_state_tensor)
-        R = next_state_value.item() * (1.0 - float(done))
+                next_state, done = env.step(action.item() - 1, tick_count * 0.1, 0.1)
+                reward = score_boat_tick(env, tick_count * 0.1, 0.1)
+                total_reward += reward
 
-        returns = []
-        for step in reversed(range(len(rewards))):
-            R = rewards[step] + gamma * R * masks[step]
-            returns.insert(0, R)
+                # save step
+                log_probs.append(m.log_prob(action))
+                values.append(state_value)
+                rewards.append(reward)
+                # Mask is 0 if the race finished, 1 otherwise
+                masks.append(1.0 - float(done))
+                entropies.append(m.entropy())
 
-        # Convert lists to tensors and force 1D shapes to prevent broadcasting
-        returns_tensor = torch.tensor(returns, dtype=torch.float32).view(-1)
-        values_tensor = torch.cat(values).view(-1)
-        log_probs_tensor = torch.stack(log_probs).view(-1)
-        entropies_tensor = torch.stack(entropies).view(-1)
+                state = next_state
+                tick_count += 1
 
-        advantages = returns_tensor - values_tensor
-        if len(advantages) > 1:
-            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+            # bootstrap
+            next_state_tensor = torch.tensor(normalize_state(state), dtype=torch.float32)
+            _, next_state_value = model(next_state_tensor)
+            R = next_state_value.item() * (1.0 - float(done))
 
-        # losses
-        actor_loss = -(log_probs_tensor * advantages.detach()).mean()
-        critic_loss = nn.functional.mse_loss(values_tensor, returns_tensor.detach())
-        entropy_loss = entropies_tensor.mean()
+            returns = []
+            for step in reversed(range(len(rewards))):
+                R = rewards[step] + gamma * R * masks[step]
+                returns.insert(0, R)
 
-        # Added the 0.5 value loss coefficient to balance the gradients
-        loss = actor_loss + 0.5*critic_loss - (entropy_coef * entropy_loss)
+            # Convert lists to tensors and force 1D shapes to prevent broadcasting
+            returns_tensor = torch.tensor(returns, dtype=torch.float32).view(-1)
+            values_tensor = torch.cat(values).view(-1)
+            log_probs_tensor = torch.stack(log_probs).view(-1)
+            entropies_tensor = torch.stack(entropies).view(-1)
 
-        optimizer.zero_grad()
-        loss.backward()
-        nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5) # gradient clipping
-        optimizer.step()
+            advantages = returns_tensor - values_tensor
+            if len(advantages) > 1:
+                advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-    lr_scheduler.step()
-    current_lr = optimizer.param_groups[0]['lr']
+            # losses
+            actor_loss = -(log_probs_tensor * advantages.detach()).mean()
+            critic_loss = nn.functional.mse_loss(values_tensor, returns_tensor.detach())
+            entropy_loss = entropies_tensor.mean()
 
-    print(f"Episode {episode + 1:3d} | Total Reward: {total_reward:7.2f} | Ticks: {tick_count:3d} | Buoys: {env.current_buoy_index} | LR: {current_lr:.6f} | Ent: {entropy_coef:.4f}")
-    logs.append({
-        "episode": episode + 1,
-        "total_reward": total_reward,
-        "ticks": tick_count,
-        "buoys_passed": env.current_buoy_index,
-        "learning_rate": current_lr,
-        "entropy_coef": entropy_coef
-    })
+            # Added the 0.5 value loss coefficient to balance the gradients
+            loss = actor_loss + 0.5*critic_loss - (entropy_coef * entropy_loss)
 
-    is_success = env.current_buoy_index >= len(env.buoys)
-    if is_success and tick_count < best_ticks:
-        best_ticks = tick_count
-        print(f"*** New best time: {best_ticks} ticks! Saving model. ***")
-        torch.save(model.state_dict(), "./models/actorcritic_model.pth")
+            optimizer.zero_grad()
+            loss.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5) # gradient clipping
+            optimizer.step()
+
+        lr_scheduler.step()
+        current_lr = optimizer.param_groups[0]['lr']
+
+        print(f"Seed {seed} | Episode {episode + 1:3d} | Total Reward: {total_reward:7.2f} | Ticks: {tick_count:3d} | Buoys: {env.current_buoy_index} | LR: {current_lr:.6f} | Ent: {entropy_coef:.4f}")
+
+        logs.append({
+            "seed": seed,
+            "episode": episode + 1,
+            "total_reward": total_reward,
+            "ticks": tick_count,
+            "buoys_passed": env.current_buoy_index,
+            "learning_rate": current_lr,
+            "entropy_coef": entropy_coef
+        })
+
+        is_success = env.current_buoy_index >= len(env.buoys)
+        if is_success and tick_count < best_ticks:
+            best_ticks = tick_count
+            print(f"*** New best time for seed {seed}: {best_ticks} ticks! Saving model. ***")
+            torch.save(model.state_dict(), f"./models/actorcritic_model_seed_{seed}.pth")
 
 training_time = time.time() - training_time
 
@@ -217,4 +225,5 @@ def inference(state):
     env_action = action.item() - 1
     return env_action, running
 
+env.reset()
 game_abstraction.run_game(env, inference)
