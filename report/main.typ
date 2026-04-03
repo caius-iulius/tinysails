@@ -164,11 +164,13 @@ $ r = (arrow(v)_"boat" dot hat(u)_"buoy") Delta t + cases(
   0 & "otherwise"
 ) $
 
-The resulting network achieved stable sub-400-tick completion time after less than 2000 training episodes. However, the network showed jittery controls, forgetting the existence of the $0deg$ output neuron, opting to bang the rudder instead. We observe the disappearance of this phenomenon with the bigger models tested later. This has led us to conclude that the network is too small to learn the dynamics of angular momentum.
+The resulting network achieved a stable 400-tick completion time after less than 2000 training episodes. However, the network showed jittery controls, forgetting the existence of the $0deg$ output neuron, opting to bang the rudder instead. We observe the disappearance of this phenomenon with the bigger models tested later. This has led us to conclude that the network is too small to learn the dynamics of angular momentum.
 
-We also trained a network with hidden layers of 16 neurons. But observed the inability of the REINFORCE method to handle bigger networks.
+We also trained a network with hidden layers of 16 neurons, but observed diminishing returns over the the increase of computational complexity/
 
-Shown below are the smoothed rewards and completion times of a big and a small network, with the original data shown faded.
+All graphs in this paper are plotted on five different training instances with different seeds. The line is a smoothed rolling average of the actual metric, while the shaded area represents the standard deviation.
+
+Shown below are the rewards and completion times of a big and a small network.
 
 #figure(image("reinforce_comparison.png"), caption: [Reward and time to completion of a small and a big network trained using REINFORCE])
 
@@ -177,7 +179,7 @@ We now move to a variant of the Actor Critic methods, which, instead, can be vie
 
 Our specific method can be viewed as an Advantage Actor Critic (A2C) architecture with a single instance of the agent. A2C itself is OpenAI's variant of A3C @Mnih2016
 
-The graph below shows the performance of REINFORCE and Actor Critic (as structured in #ref(<cac>)) trained on the same course. It can be seen that Actor Critic is clearly more sample-efficient than REINFORCE, finding acceptable solutions in around 10 episodes, while also being more locally stable than REINFORCE (that is, while the reward function still fluctuates, it does so in a bigger timeframe).
+The graph below shows the performance of REINFORCE and Actor Critic (as structured in #ref(<cac>)) trained on the same course. It can be seen that Actor Critic is clearly more sample-efficient than REINFORCE, finding acceptable solutions in around 10 episodes, and although its training is more unstable, it finds a better, more accurate solution in the end. The subsequent sections will focus on stabilizing training prevent gradient explosion and model collapse.
 
 #figure(image("reinforce_vs_actorcritic_oldcourse.png"), caption: [REINFORCE vs Actor Critic trained on the same course])
 
